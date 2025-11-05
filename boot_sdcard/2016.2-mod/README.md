@@ -6,7 +6,7 @@ This is a modified version of Xilinx's released boot files located at:
 The goal is a minimal linux environment with the following features:
 
 - SSH access via Ethernet
-- Static IP address `192.168.0.10`
+- Static IP address `10.0.0.10`
 - User:password `root:`
 - Configure Programmable Logic (PL) with `cat something.bit > /dev/xdevcfg`
 
@@ -36,7 +36,7 @@ The only files actually required to be on the SD card are:
 Modifying initramfs: short version
 ----------------------------------
 
-The initramfs is already unpacked in this repository so just make your edits,
+NOT WORKING DUE TO WRONG FILE OWNERSHIPS. The initramfs is already unpacked in this repository so just make your edits,
 then run `make`, then copy `uramdisk_new.image.gz` to the boot partition of the
 SD card overwriting `uramdisk.image.gz`.
 
