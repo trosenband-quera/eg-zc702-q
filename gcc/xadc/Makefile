@@ -59,7 +59,12 @@ run: transfer
 getdata:
 	scp zc702:~/1.csv .
 	python3 plot_csv.py 1.csv
-	
+
+.PHONY : gethist
+gethist:
+	scp zc702:~/1.csv .
+	python3 plot_csv.py 1.csv --hist-raw
+
 .PHONY : clean
 clean:
 	-rm -f *.o
