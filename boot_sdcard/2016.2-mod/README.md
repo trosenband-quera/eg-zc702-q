@@ -7,7 +7,8 @@ The goal is a minimal linux environment with the following features:
 
 - SSH access via Ethernet
 - Static IP address `10.0.0.10`
-- User:password `root:`
+- User: `root`
+- Password: ``
 - Configure Programmable Logic (PL) with `cat something.bit > /dev/xdevcfg`
 
 The simplest way to get started is simply to copy all the files from this
@@ -33,15 +34,15 @@ The only files actually required to be on the SD card are:
   This is the only file which needs to be modified (I assume naively).
 
 
-Modifying initramfs: short version
+Modifying initramfs: short version [NOT WORKING DUE TO WRONG FILE OWNERSHIPS]
 ----------------------------------
 
-NOT WORKING DUE TO WRONG FILE OWNERSHIPS. The initramfs is already unpacked in this repository so just make your edits,
+The initramfs is already unpacked in this repository so just make your edits,
 then run `make`, then copy `uramdisk_new.image.gz` to the boot partition of the
 SD card overwriting `uramdisk.image.gz`.
 
 
-Modifying initramfs: detailed version
+Modifying initramfs: detailed version [THIS WORKS]
 -------------------------------------
 
 - unwrap the U-Boot header
