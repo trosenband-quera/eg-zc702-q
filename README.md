@@ -1,11 +1,11 @@
-eg-zc702
+eg-zc702-q
 ========
 
 Examples for the Xilinx Zynq development board ZC702.
 
 The Zynq (hard dual-core ARM) will boot from the SD card quickly and run a
 minimal linux environment which allows SSH access via a static IP
-(`192.168.0.10`).
+(`10.0.0.10`).
 The Programmable Logic (PL) portion can be configured using the xdevcfg driver.
 
 For more info about the on-chip linux environment and related modifications
