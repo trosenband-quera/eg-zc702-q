@@ -10,11 +10,12 @@ CROSS_COMPILE := arm-linux-gnueabihf
 AR := $(CROSS_COMPILE)-ar
 AS := $(CROSS_COMPILE)-as
 CC := $(CROSS_COMPILE)-gcc
-CPP := $(CROSS_COMPILE)-cpp
+CXX := $(CROSS_COMPILE)-g++
 LD := $(CROSS_COMPILE)-ld
 
 # More warnings.
 CFLAGS := -Wall -Wextra
+CXXFLAGS := -Wall -Wextra
 
 # The minimal linux does not have shared libraries to dynamically link to so
 # executable must be statically linked.

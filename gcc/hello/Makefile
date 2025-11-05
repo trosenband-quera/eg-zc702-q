@@ -3,7 +3,7 @@ SELF := $(shell basename $(PWD))
 
 # Zynq on ZC702 is running linux so use arm-linux-gnueabi
 # For bare-metal target use arm-none-gnueabi
-CROSS_COMPILE := arm-linux-gnueabi
+CROSS_COMPILE := arm-linux-gnueabihf
 
 # Setup variables used by make's implicit rules.
 # https://www.gnu.org/software/make/manual/html_node/Catalogue-of-Rules.html

@@ -23,6 +23,7 @@ wrap: pack
 		-n 2016.2-mod \
 		-d initramfs_new.cpio.gz \
 		uramdisk_new.image.gz
+	cp uramdisk_new.image.gz /home/zdev/xfer/uramdisk.image.gz
 
 
 # For this target to work you need to have ssh setup appropriately using
