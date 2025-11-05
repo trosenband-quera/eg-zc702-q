@@ -8,6 +8,13 @@
 #define XADC_SPAN       0x1000
 #define XADC_VPVN_REG   0x04  // see UG480 for register offsets
 
+// Source - https://stackoverflow.com/questions/10192903/time-in-milliseconds-in-c
+// Posted by cmh
+// Retrieved 11/5/2025, License - CC BY-SA 4.0
+
+#include <stdio.h>
+#include <sys/time.h>
+
 int main() {
     int fd;
     void *map_base;
@@ -27,12 +34,18 @@ int main() {
     }
 
 	unsigned n = 0;
-	unsigned nmax = 5;
+	unsigned nmax = 20;
+	int showscaled = 0;
+	unsigned ms = 5;
+	
 	const float Toff = -273.15;
 	const float scale[8] = {503.975, 3, 3, 1, 1, 1, 3, 1}; // see UG480, p. 33
 	const unsigned bipolar[8] = {0, 0, 0, 0, 0, 1, 0, 0};
 	const unsigned offset = 0x200;  // see XADC Wizard v3.3 Product Guide (PG091), p. 17
-	const char channels[] = "   TEMP    VCCINT   VCCAUX    VP/VN    VREFP    VREFN  VCCBRAM";
+	const char channels[] = "   TEMP   VCCINT   VCCAUX    VP/VN    VREFP    VREFN  VCCBRAM";
+	
+	struct timeval stop, start;
+    gettimeofday(&start, NULL);
     while (n < nmax) {
 		if(n % nmax == 0) {
 			printf(" offset address: ");
@@ -41,25 +54,32 @@ int main() {
 			}
 			printf("\n                  %s\n", channels);
 		}
-		printf("Raw XADC values: ");
+		
+		gettimeofday(&stop, NULL);
+		int us = (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec;
+		
+		printf("XADC %6d us: ", us);
 		for(unsigned i=0; i<0x1c; i+=4) {
 			xadc_reg = (volatile unsigned int *)((char *)map_base + offset + i);
 			unsigned int raw = *xadc_reg;
 			unsigned low = raw & 0xffff;
 			printf("   0x%04X", low);
 		}
-		printf("\n  Scaled values: ");
-		for(unsigned i=0; i<0x1c; i+=4) {
-			xadc_reg = (volatile unsigned int *)((char *)map_base + offset + i);
-			unsigned int raw = *xadc_reg;
-			int low = (raw & 0xffff) >> 4;
-			if(bipolar[i/4] && low >= 0x800)
-				low = low - 0xfff - 1;
-				
-			printf(i == 0 ? " %7.2fC" : " %7.4fV", low*scale[i/4]/4096.0 + (i == 0 ? Toff : 0));
-		}
 		printf("\n");
-        usleep(100000);  // 0.1 seconds
+		if(showscaled) {
+			printf("  Scaled values: ");
+			for(unsigned i=0; i<0x1c; i+=4) {
+				xadc_reg = (volatile unsigned int *)((char *)map_base + offset + i);
+				unsigned int raw = *xadc_reg;
+				int low = (raw & 0xffff) >> 4;
+				if(bipolar[i/4] && low >= 0x800)
+					low = low - 0xfff - 1;
+					
+				printf(i == 0 ? " %7.2fC" : " %7.4fV", low*scale[i/4]/4096.0 + (i == 0 ? Toff : 0));
+			}
+			printf("\n");
+		}
+        usleep(1000*ms);
         n++;
     }
 
