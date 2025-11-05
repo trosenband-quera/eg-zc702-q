@@ -26,7 +26,7 @@ Several make targets assume you have something similar to this in
 `~/.ssh/config`:
 
     Host zc702
-        Hostname 192.168.0.10
+        Hostname 10.0.0.10
         User root
         StrictHostKeyChecking no
         UserKnownHostsFile /dev/null
