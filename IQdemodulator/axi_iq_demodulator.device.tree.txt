@@ -1,0 +1,4 @@
+axi_iq_demodulator@40000000 {
+    compatible = "xlnx,axi-iq-demodulator-1.0";
+    reg = <0x40000000 0x1000>;
+};

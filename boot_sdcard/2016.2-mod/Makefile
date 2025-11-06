@@ -11,7 +11,7 @@ unpack:
 
 .PHONY: pack
 pack:
-	sh -c 'cd initramfs && sudo find . | sudo cpio -H newc -o' | \
+	sh -c 'cd initramfs_new && sudo find . | sudo cpio -H newc -o' | \
 		gzip -9 > initramfs_new.cpio.gz
 
 .PHONY: wrap
@@ -23,7 +23,7 @@ wrap: pack
 		-n 2016.2-mod \
 		-d initramfs_new.cpio.gz \
 		uramdisk_new.image.gz
-	cp uramdisk_new.image.gz /home/zdev/xfer/uramdisk.image.gz
+	scp uramdisk_new.image.gz zc702:/run/media/mmcblk0p1/uramdisk.image.gz
 
 
 # For this target to work you need to have ssh setup appropriately using
