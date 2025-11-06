@@ -103,6 +103,9 @@ set orig_proj_dir "[file normalize "$origin_dir/"]"
 # Create project
 create_project ${_xil_proj_name_} ./${_xil_proj_name_} -part xc7z020clg484-1 -force
 
+set_property IP_REPO_PATHS "[file normalize "$origin_dir/../ip_repo"]" [current_project]
+update_ip_catalog
+
 # Set the directory path for the new project
 set proj_dir [get_property directory [current_project]]
 
