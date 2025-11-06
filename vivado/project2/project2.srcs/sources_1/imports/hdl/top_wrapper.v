@@ -1,6 +1,6 @@
 `timescale 1 ps / 1 ps
 
-module led8_wrapper
+module top_wrapper
    (DDR_addr,
     DDR_ba,
     DDR_cas_n,
@@ -69,7 +69,7 @@ module led8_wrapper
   wire FIXED_IO_ps_srstb;
   wire [7:0]LED8b_tri_o;
 
-  led8 led8_i
+  top top_i
        (.DDR_addr(DDR_addr),
         .DDR_ba(DDR_ba),
         .DDR_cas_n(DDR_cas_n),
