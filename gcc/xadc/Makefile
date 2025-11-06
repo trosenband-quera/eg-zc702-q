@@ -47,7 +47,7 @@ transfer: default
 
 .PHONY: xdevcfg
 xdevcfg:
-	cp ../../vivado/projmode-led8/projmode-led8.runs/impl_1/led8_wrapper.bit pl.bit
+	cp ../../vivado/phase/project/project.runs/impl_1/led8_wrapper.bit pl.bit
 	scp pl.bit zc702:~/
 	ssh zc702 -C "cat pl.bit > /dev/xdevcfg"
 	
