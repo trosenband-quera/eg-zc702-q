@@ -17,6 +17,7 @@ To get started:
 - `cd projmode-led8`
 - Start the Vivado GUI and recreate the project
     `vivado -source recreate.tcl`
+- For XADC, run `vivado -source xadc_project.tcl` -- tested w/ version 2018.2
 - Make design changes (optional, skip this first time)
 - On LHS of the GUI click "Generate Bitstream"
     - Once finished running (a few minutes) a bitstream file will be available
