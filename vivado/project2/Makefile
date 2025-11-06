@@ -2,7 +2,7 @@
 SELF := $(shell basename $(PWD))
 
 default:
-	vivado -source recreate.tcl
+	vivado -source xadc_project.tcl
 
 .PHONY : clean
 clean:
@@ -18,9 +18,11 @@ clean:
 	-rm -rf project2.srcs/sources_1/bd/top/sim
 	-rm -rf project2.srcs/sources_1/bd/top/hdl
 	-rm -rf project2.srcs/sources_1/bd/top/ip
+	-rm -rf project2.srcs/sources_1/bd/top/ui
 	-rm -rf project2.srcs/sources_1/bd/top/ipshared
 	-rm -rf project2.srcs/sources_1/bd/top/*.bxml
 	-rm -rf project2.srcs/sources_1/bd/top/*.bmm
+	-rm -rf project2.srcs/sources_1/bd/top/*.xdc
 	-rm -rf project2
 
 # List all Make targets.
