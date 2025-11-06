@@ -15,7 +15,7 @@ LD := $(CROSS_COMPILE)-ld
 
 # More warnings.
 CFLAGS := -Wall -Wextra
-CXXFLAGS := -Wall -Wextra
+CXXFLAGS := -Wall -Wextra -g -O1 -gdwarf-4
 
 # The minimal linux does not have shared libraries to dynamically link to so
 # executable must be statically linked.
@@ -54,6 +54,18 @@ xdevcfg:
 .PHONY : run
 run: transfer
 	ssh zc702 -C "./$(SELF)"
+
+.PHONY : getdata
+getdata:
+	ssh zc702 -C "./xadc -c 3 -s -q -f 1.csv -n 200 -m 1"
+	scp zc702:~/1.csv .
+	python3 plot_csv.py 1.csv
+
+.PHONY : gethist
+gethist:
+	ssh zc702 -C "./xadc -c 3 -s -q -f 1.csv -n 2000 -m 1"
+	scp zc702:~/1.csv .
+	python3 plot_csv.py 1.csv --hist-raw
 
 .PHONY : clean
 clean:

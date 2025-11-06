@@ -2,6 +2,7 @@ eg-zc702-q
 ========
 
 Examples for the Xilinx Zynq development board ZC702.
+Phase demodulation via XADC input is in progress as of 11/2025.
 
 The Zynq (hard dual-core ARM) will boot from the SD card quickly and run a
 minimal linux environment which allows SSH access via a static IP
