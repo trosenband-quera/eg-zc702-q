@@ -36,15 +36,15 @@ module tb;
         repeat(5) @(posedge tb_ACLK);
 
         //Reset the PL
-        tb.zynq_sys.led8_i.processing_system7_0.inst.fpga_soft_reset(32'h1);
-        tb.zynq_sys.led8_i.processing_system7_0.inst.fpga_soft_reset(32'h0);
+        tb.zynq_sys.top_i.processing_system7_0.inst.fpga_soft_reset(32'h1);
+        tb.zynq_sys.top_i.processing_system7_0.inst.fpga_soft_reset(32'h0);
 
         //This drives the LEDs on the GPIO output
-        tb.zynq_sys.led8_i.processing_system7_0.inst.write_data(32'h41200000,4, 32'hFFFFFFFF, resp);
+        tb.zynq_sys.top_i.processing_system7_0.inst.write_data(32'h41200000,4, 32'hFFFFFFFF, resp);
         $display ("LEDs are toggled, observe the waveform");
         //Write into the BRAM through GP0 and read back
-        tb.zynq_sys.led8_i.processing_system7_0.inst.write_data(32'h40000000,4, 32'hDEADBEEF, resp);
-        tb.zynq_sys.led8_i.processing_system7_0.inst.read_data(32'h40000000,4,read_data,resp);
+        tb.zynq_sys.top_i.processing_system7_0.inst.write_data(32'h40000000,4, 32'hDEADBEEF, resp);
+        tb.zynq_sys.top_i.processing_system7_0.inst.read_data(32'h40000000,4,read_data,resp);
         $display ("%t, running the testbench, data read from BRAM was 32'h%x",$time, read_data);
         if(read_data == 32'hDEADBEEF) begin
            $display ("AXI VIP Test PASSED");
@@ -59,7 +59,7 @@ module tb;
     assign temp_clk = tb_ACLK;
     assign temp_rstn = tb_ARESETn;
 
-led8_wrapper zynq_sys
+top_wrapper zynq_sys
    (.DDR_addr(),
     .DDR_ba(),
     .DDR_cas_n(),
