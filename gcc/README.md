@@ -17,6 +17,20 @@ Some programs may have other make target/dependency combinations to simplify the
 build, copy, ssh, and run process.
 These Makefiles are kept very simple by using the implict rules.
 
+xadc
+----
+
+Test the FPGA's ADC converter.
+    cd xadc
+    make            # Build binary.
+    make transfer   # Use SCP to copy binary onto target.
+    ssh zc702       # Get a terminal on target.
+    ./xadc          # Run binary on target.
+    exit            # back to host
+    make getdata    # acquire XADC data and plot
+    make gethist    # acquire XADC data and show histogram
+![histogram](xadc/hist.png)
+
 
 hello
 -----
