@@ -1,10 +1,23 @@
 module iq_demodulator (
     input wire clk,                  // 100 MHz system clock
     input wire rst,
-    output wire [16:0] adc_data,     // last adc sample
+    output reg [15:0] adc_data_reg,
+    output reg [31:0] adc_sample_count,
     output wire [15:0] phase_100k,
     output wire [15:0] phase_110k,
-    output wire [15:0] phase_120k
+    output wire [15:0] phase_120k,
+    // XADC configuration supplied externally
+    input wire [15:0] INIT_40,
+    input wire [15:0] INIT_41,
+    input wire [15:0] INIT_42,
+    input wire [15:0] INIT_48,
+    input wire [15:0] INIT_49,
+    input wire [15:0] INIT_4A,
+    input wire [15:0] INIT_4B,
+    input wire [15:0] INIT_4C,
+    input wire [15:0] INIT_4D,
+    input wire [15:0] INIT_4E,
+    input wire [15:0] INIT_4F
 );
 
 // DDS parameters
@@ -43,7 +56,7 @@ wire [7:0] addr_100k = phase_acc_100k[PHASE_WIDTH-1 -: 8];
 wire [7:0] addr_110k = phase_acc_110k[PHASE_WIDTH-1 -: 8];
 wire [7:0] addr_120k = phase_acc_120k[PHASE_WIDTH-1 -: 8];
 
-always @(posedge clk) begin
+always @(posedge adc_ready) begin
     if (rst) begin
         phase_acc_100k <= 0;
         phase_acc_110k <= 0;
@@ -69,7 +82,7 @@ reg signed [31:0] i_avg_100k = 0, q_avg_100k = 0;
 reg signed [31:0] i_avg_110k = 0, q_avg_110k = 0;
 reg signed [31:0] i_avg_120k = 0, q_avg_120k = 0;
 
-always @(posedge clk) begin
+always @(posedge adc_ready) begin
     i_avg_100k <= (i_avg_100k >> 1) + (i_100k >> 1);
     q_avg_100k <= (q_avg_100k >> 1) + (q_100k >> 1);
     i_avg_110k <= (i_avg_110k >> 1) + (i_110k >> 1);
@@ -104,33 +117,40 @@ cordic_atan2 cordic_120k (
 );
 
 // XADC
-
-wire [15:0] xadc_data;
 wire xadc_ready;
 
-XADC #(
-    .INIT_40(16'h3000), // Enable continuous sampling
-    .INIT_41(16'h2F0F), // Enable channel selection
-    .INIT_42(16'h0400), // Averaging and acquisition time
-    .INIT_48(16'h0000), // Sequencer mode
-    .INIT_49(16'h0000),
-    .INIT_4A(16'h0000),
-    .INIT_4B(16'h0000),
-    .INIT_4C(16'h0000),
-    .INIT_4D(16'h0000),
-    .INIT_4E(16'h0000),
-    .INIT_4F(16'h0000)
+XADC #( // see Xilinx UG480 for details, p. 22 and44
+    .INIT_40(INIT_40),
+    .INIT_41(INIT_41),
+    .INIT_42(INIT_42),
+    .INIT_48(INIT_48),
+    .INIT_49(INIT_49),
+    .INIT_4A(INIT_4A),
+    .INIT_4B(INIT_4B),
+    .INIT_4C(INIT_4C),
+    .INIT_4D(INIT_4D),
+    .INIT_4E(INIT_4E),
+    .INIT_4F(INIT_4F)
 ) adc_inst (
     .DADDR(7'h14),       // Address for channel selection (e.g., temperature, Vp/Vn)
     .DCLK(clk),
     .DEN(1'b1),
     .DI(16'h0000),
     .DRDY(xadc_ready),
-    .DO(xadc_data),
+    .DO(adc_data),
     .RESET(rst),
     .VP(1'b0),
     .VN(1'b0)
 );
 
+always @(posedge clk and xadc_ready) begin
+    if (rst) begin
+        adc_sample_count <= 0;
+        adc_data_reg <= 0;
+    end else begin
+        adc_sample_count <= adc_sample_count + 1;
+        adc_data_reg <= adc_data;
+    end
+end
+
 endmodule
-``

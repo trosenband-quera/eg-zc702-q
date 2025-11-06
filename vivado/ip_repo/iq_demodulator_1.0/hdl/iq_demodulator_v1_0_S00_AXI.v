@@ -1,4 +1,3 @@
-
 `timescale 1 ns / 1 ps
 
 	module iq_demodulator_v1_0_S00_AXI #
@@ -232,22 +231,6 @@
 	begin
 	  if ( S_AXI_ARESETN == 1'b0 )
 	    begin
-	      slv_reg0 <= 0;
-	      slv_reg1 <= 0;
-	      slv_reg2 <= 0;
-	      slv_reg3 <= 0;
-	      slv_reg4 <= 0;
-	      slv_reg5 <= 0;
-	      slv_reg6 <= 0;
-	      slv_reg7 <= 0;
-	      slv_reg8 <= 0;
-	      slv_reg9 <= 0;
-	      slv_reg10 <= 0;
-	      slv_reg11 <= 0;
-	      slv_reg12 <= 0;
-	      slv_reg13 <= 0;
-	      slv_reg14 <= 0;
-	      slv_reg15 <= 0;
 	    end 
 	  else begin
 	    if (slv_reg_wren)
@@ -533,4 +516,94 @@
 
 	// User logic ends
 
-	endmodule
+	// Register mapping for XADC configuration and status:
+	// Each 32-bit slave register controls two 16-bit XADC config registers:
+	// slv_reg0[15:0]   : INIT_40
+	// slv_reg0[31:16]  : INIT_41
+	// slv_reg1[15:0]   : INIT_42
+	// slv_reg1[31:16]  : INIT_48
+	// slv_reg2[15:0]   : INIT_49
+	// slv_reg2[31:16]  : INIT_4A
+	// slv_reg3[15:0]   : INIT_4B
+	// slv_reg3[31:16]  : INIT_4C
+	// slv_reg4: Reserved or future use
+	// slv_reg5: Reserved or future use
+	// slv_reg6: Reserved or future use
+	// slv_reg7: adc sample count (upper 32 bits)
+	// slv_reg8: adc_data (lower 16 bits)
+	// slv_reg9: phase0
+	// slv_reg10: phase1
+	// slv_reg11: phase2
+	
+	wire [15:0] adc_data_wire;
+	wire [15:0] phase_100k;
+	wire [15:0] phase_110k;
+	wire [15:0] phase_120k;
+	wire [31:0] adc_sample_count;
+
+	always @(posedge S_AXI_ACLK) begin
+	    if (S_AXI_ARESETN == 1'b0) begin
+			//.INIT_40(16'h7403), // no acg, continuous sampling, bipolar, single channel VP/VN
+			//.INIT_41(16'h2F0F), // no sequencer, no alarms, no calibration
+			//.INIT_42(16'h0400), // ADCCLK = clk/4.  26 ADCCLK per conversion
+			//.INIT_48(16'h0000), // Sequencer mode
+			slv_reg0 <= 32'h2F0F7403;
+			slv_reg1 <= 32'h00000400;
+			slv_reg2 <= 0;
+			slv_reg3 <= 0;
+			slv_reg4 <= 0;
+	        slv_reg5 <= 0;
+			slv_reg6 <= 0;
+	        slv_reg7 <= 0;
+	        slv_reg8 <= 0;
+	        slv_reg9 <= 0;
+			slv_reg10 <= 0;
+			slv_reg11 <= 0;
+			slv_reg12 <= 0;
+			slv_reg13 <= 0;
+			slv_reg14 <= 0;
+			slv_reg15 <= 0;
+	    end else begin
+			slv_reg7 <= adc_sample_count;
+			slv_reg8 <= {15'b0, adc_data_wire};
+			slv_reg9 <= {15'b0, phase_100k};
+	        slv_reg10 <= {15'b0, phase_110k};
+	        slv_reg11 <= {15'b0, phase_120k};
+	    end
+	end
+
+	// Instantiate iq_demodulator and connect XADC config from slave registers
+	wire [15:0] INIT_40 = slv_reg0[15:0];
+	wire [15:0] INIT_41 = slv_reg0[31:16];
+	wire [15:0] INIT_42 = slv_reg1[15:0];
+	wire [15:0] INIT_48 = slv_reg1[31:16];
+	wire [15:0] INIT_49 = slv_reg2[15:0];
+	wire [15:0] INIT_4A = slv_reg2[31:16];
+	wire [15:0] INIT_4B = slv_reg3[15:0];
+	wire [15:0] INIT_4C = slv_reg3[31:16];
+	wire [15:0] INIT_4D = slv_reg4[15:0];
+	wire [15:0] INIT_4E = slv_reg4[31:16];
+	wire [15:0] INIT_4F = slv_reg5[15:0];
+
+	iq_demodulator u_iq_demodulator (
+	    .clk(S_AXI_ACLK),
+	    .rst(~S_AXI_ARESETN),
+	    .adc_data(), // connect as needed
+		.adc_ready(), // connect as needed
+	    .phase_100k(), // connect as needed
+	    .phase_110k(), // connect as needed
+	    .phase_120k(), // connect as needed
+	    .INIT_40(INIT_40),
+	    .INIT_41(INIT_41),
+	    .INIT_42(INIT_42),
+	    .INIT_48(INIT_48),
+	    .INIT_49(INIT_49),
+	    .INIT_4A(INIT_4A),
+	    .INIT_4B(INIT_4B),
+	    .INIT_4C(INIT_4C),
+	    .INIT_4D(INIT_4D),
+	    .INIT_4E(INIT_4E),
+	    .INIT_4F(INIT_4F)
+	);
+
+endmodule
