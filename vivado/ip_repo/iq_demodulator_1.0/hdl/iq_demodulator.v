@@ -3,28 +3,28 @@ module iq_demodulator (
     input wire rst,
     output reg [15:0] adc_data_reg,
     output reg [31:0] adc_sample_count,
-    output wire [15:0] phase_100k,
-    output wire [15:0] phase_110k,
-    output wire [15:0] phase_120k
+    output wire [15:0] phase0,
+    output wire [15:0] phase1,
+    output wire [15:0] phase2
 );
 
 // DDS parameters
 localparam PHASE_WIDTH = 32;
 localparam LUT_SIZE = 256;
 localparam SAMPLE_RATE = 1000000;
-localparam FREQ_100K =    100000;
-localparam FREQ_110K =    110000;
-localparam FREQ_120K =    120000;
+localparam FREQ0 =    100000;
+localparam FREQ1 =    110000;
+localparam FREQ2 =    120000;
 
 // Phase increment = (freq * LUT_SIZE) / SAMPLE_RATE
-localparam DDS_PHASE_INC_100K = (FREQ_100K * LUT_SIZE) / SAMPLE_RATE;
-localparam DDS_PHASE_INC_110K = (FREQ_110K * LUT_SIZE) / SAMPLE_RATE;
-localparam DDS_PHASE_INC_120K = (FREQ_120K * LUT_SIZE) / SAMPLE_RATE;
+localparam DDS_PHASE_INC0 = (FREQ0 * LUT_SIZE) / SAMPLE_RATE;
+localparam DDS_PHASE_INC1 = (FREQ1 * LUT_SIZE) / SAMPLE_RATE;
+localparam DDS_PHASE_INC2 = (FREQ2 * LUT_SIZE) / SAMPLE_RATE;
 
 // DDS phase accumulators
-reg [PHASE_WIDTH-1:0] dds_phase_acc_100k = 0;
-reg [PHASE_WIDTH-1:0] dds_phase_acc_110k = 0;
-reg [PHASE_WIDTH-1:0] dds_phase_acc_120k = 0;
+reg [PHASE_WIDTH-1:0] dds_phase_acc0 = 0;
+reg [PHASE_WIDTH-1:0] dds_phase_acc1 = 0;
+reg [PHASE_WIDTH-1:0] dds_phase_acc2 = 0;
 
 // LUT for sine and cosine
 reg signed [15:0] sin_lut [0:LUT_SIZE-1];
@@ -40,23 +40,23 @@ initial begin
 end
 
 // DDS update
-wire [7:0] addr_100k = dds_phase_acc_100k[PHASE_WIDTH-1 -: 8];
-wire [7:0] addr_110k = dds_phase_acc_110k[PHASE_WIDTH-1 -: 8];
-wire [7:0] addr_120k = dds_phase_acc_120k[PHASE_WIDTH-1 -: 8];
+wire [7:0] addr0 = dds_phase_acc0[PHASE_WIDTH-1 -: 8];
+wire [7:0] addr1 = dds_phase_acc1[PHASE_WIDTH-1 -: 8];
+wire [7:0] addr2 = dds_phase_acc2[PHASE_WIDTH-1 -: 8];
 
 // Mixers
 wire signed [15:0] in_signal = adc_data_reg;
-wire signed [31:0] i_100k = in_signal * cos_lut[addr_100k];
-wire signed [31:0] q_100k = in_signal * sin_lut[addr_100k];
-wire signed [31:0] i_110k = in_signal * cos_lut[addr_110k];
-wire signed [31:0] q_110k = in_signal * sin_lut[addr_110k];
-wire signed [31:0] i_120k = in_signal * cos_lut[addr_120k];
-wire signed [31:0] q_120k = in_signal * sin_lut[addr_120k];
+wire signed [31:0] i0 = in_signal * cos_lut[addr0];
+wire signed [31:0] q0 = in_signal * sin_lut[addr0];
+wire signed [31:0] i1 = in_signal * cos_lut[addr1];
+wire signed [31:0] q1 = in_signal * sin_lut[addr1];
+wire signed [31:0] i2 = in_signal * cos_lut[addr2];
+wire signed [31:0] q2 = in_signal * sin_lut[addr2];
 
 // Simple moving average filter (low-pass)
-reg signed [31:0] i_avg_100k = 0, q_avg_100k = 0;
-reg signed [31:0] i_avg_110k = 0, q_avg_110k = 0;
-reg signed [31:0] i_avg_120k = 0, q_avg_120k = 0;
+reg signed [31:0] i_avg0 = 0, q_avg0 = 0;
+reg signed [31:0] i_avg1 = 0, q_avg1 = 0;
+reg signed [31:0] i_avg2 = 0, q_avg2 = 0;
 
 
 // ADC data sampling and counting, on xadc_ready rising edge
@@ -68,56 +68,56 @@ always @(posedge clk) begin
         adc_data_reg <= 0;
         prev_xadc_ready <= 0;
 
-        dds_phase_acc_100k <= 0;
-        dds_phase_acc_110k <= 0;
-        dds_phase_acc_120k <= 0;
+        dds_phase_acc0 <= 0;
+        dds_phase_acc1 <= 0;
+        dds_phase_acc2 <= 0;
     end else begin
         if (xadc_ready && !prev_xadc_ready) begin
             adc_sample_count <= adc_sample_count + 1;
             adc_data_reg <= adc_data;
 
             // Update DDS phase accumulators
-            dds_phase_acc_100k <= dds_phase_acc_100k + DDS_PHASE_INC_100K;
-            dds_phase_acc_110k <= dds_phase_acc_110k + DDS_PHASE_INC_110K;
-            dds_phase_acc_120k <= dds_phase_acc_120k + DDS_PHASE_INC_120K;
+            dds_phase_acc0 <= dds_phase_acc0 + DDS_PHASE_INC0;
+            dds_phase_acc1 <= dds_phase_acc1 + DDS_PHASE_INC1;
+            dds_phase_acc2 <= dds_phase_acc2 + DDS_PHASE_INC2;
 
             // Update moving average filters
-            i_avg_100k <= (i_avg_100k >> 1) + (i_100k >> 1);
-            q_avg_100k <= (q_avg_100k >> 1) + (q_100k >> 1);
+            i_avg0 <= (i_avg0 >> 1) + (i0 >> 1);
+            q_avg0 <= (q_avg0 >> 1) + (q0 >> 1);
 
-            i_avg_110k <= (i_avg_110k >> 1) + (i_110k >> 1);
-            q_avg_110k <= (q_avg_110k >> 1) + (q_110k >> 1);
+            i_avg1 <= (i_avg1 >> 1) + (i1 >> 1);
+            q_avg1 <= (q_avg1 >> 1) + (q1 >> 1);
 
-            i_avg_120k <= (i_avg_120k >> 1) + (i_120k >> 1);
-            q_avg_120k <= (q_avg_120k >> 1) + (q_120k >> 1);
+            i_avg2 <= (i_avg2 >> 1) + (i2 >> 1);
+            q_avg2 <= (q_avg2 >> 1) + (q2 >> 1);
         end
         prev_xadc_ready <= xadc_ready;
     end
 end
 
 // Phase calculation using CORDIC 
-cordic_atan2 cordic_100k (
+cordic_atan2 cordic0 (
     .clk(clk),
     .rst(rst),
-    .x(i_avg_100k[31:16]),
-    .y(q_avg_100k[31:16]),
-    .phase(phase_100k)
+    .x(i_avg0[31:16]),
+    .y(q_avg0[31:16]),
+    .phase(phase0)
 );
 
-cordic_atan2 cordic_110k (
+cordic_atan2 cordic1 (
     .clk(clk),
     .rst(rst),
-    .x(i_avg_110k[31:16]),
-    .y(q_avg_110k[31:16]),
-    .phase(phase_110k)
+    .x(i_avg1[31:16]),
+    .y(q_avg1[31:16]),
+    .phase(phase1)
 );
 
-cordic_atan2 cordic_120k (
+cordic_atan2 cordic2 (
     .clk(clk),
     .rst(rst),
-    .x(i_avg_120k[31:16]),
-    .y(q_avg_120k[31:16]),
-    .phase(phase_120k)
+    .x(i_avg2[31:16]),
+    .y(q_avg2[31:16]),
+    .phase(phase2)
 );
 
 // XADC

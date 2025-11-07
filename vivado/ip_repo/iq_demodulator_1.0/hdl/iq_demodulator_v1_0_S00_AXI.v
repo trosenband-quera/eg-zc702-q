@@ -499,9 +499,9 @@
 	// slv_reg11: phase2
 	
 	wire [15:0] adc_data_wire;
-	wire [15:0] phase_100k;
-	wire [15:0] phase_110k;
-	wire [15:0] phase_120k;
+	wire [15:0] phase0;
+	wire [15:0] phase1;
+	wire [15:0] phase2;
 	wire [31:0] adc_sample_count;
 
 	always @(posedge S_AXI_ACLK) begin
@@ -514,9 +514,9 @@
 	    end else begin
 			slv_reg7 <= adc_sample_count;
 			slv_reg8 <= {15'b0, adc_data_wire};
-			slv_reg9 <= {15'b0, phase_100k};
-	        slv_reg10 <= {15'b0, phase_110k};
-	        slv_reg11 <= {15'b0, phase_120k};
+			slv_reg9 <= {15'b0, phase0};
+	        slv_reg10 <= {15'b0, phase1};
+	        slv_reg11 <= {15'b0, phase2};
 	    end
 	end
 
@@ -526,9 +526,9 @@
 	    .rst(~S_AXI_ARESETN),
 	    .adc_data_reg(adc_data_wire),
 		.adc_sample_count(adc_sample_count),
-	    .phase_100k(phase_100k),
-	    .phase_110k(phase_110k),
-	    .phase_120k(phase_120k)
+	    .phase0(phase0),
+	    .phase1(phase1),
+	    .phase2(phase2)
 	);
 
 endmodule
