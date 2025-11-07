@@ -143,13 +143,20 @@ XADC #( // see Xilinx UG480 for details, p. 22 and44
     .VN(1'b0)
 );
 
-always @(posedge clk and xadc_ready) begin
+// ADC data sampling and counting, on xadc_ready rising edge
+reg prev_xadc_ready;
+
+always @(posedge clk) begin
     if (rst) begin
         adc_sample_count <= 0;
         adc_data_reg <= 0;
+        prev_xadc_ready <= 0;
     end else begin
-        adc_sample_count <= adc_sample_count + 1;
-        adc_data_reg <= adc_data;
+        if (xadc_ready && !prev_xadc_ready) begin
+            adc_sample_count <= adc_sample_count + 1;
+            adc_data_reg <= adc_data;
+        end
+        prev_xadc_ready <= xadc_ready;
     end
 end
 
