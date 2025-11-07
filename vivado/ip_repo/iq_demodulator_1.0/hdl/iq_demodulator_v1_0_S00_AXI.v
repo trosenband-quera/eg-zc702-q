@@ -3,7 +3,7 @@
 	module iq_demodulator_v1_0_S00_AXI #
 	(
 		// Users to add parameters here
-
+		parameter integer NUM_DEMOD_CHANNELS = 3,
 		// User parameters ends
 		// Do not modify the parameters beyond this line
 
@@ -485,10 +485,6 @@
 
 	// Add user logic here
 
-	// User logic ends
-
-	// Register mapping for XADC configuration and status:
-	// Each 32-bit slave register controls two 16-bit XADC config registers:
 	// slv_reg4: Reserved or future use
 	// slv_reg5: Reserved or future use
 	// slv_reg6: Reserved or future use
@@ -499,9 +495,7 @@
 	// slv_reg11: phase2
 	
 	wire [15:0] adc_data_wire;
-	wire [15:0] phase0;
-	wire [15:0] phase1;
-	wire [15:0] phase2;
+	wire [16*NUM_DEMOD_CHANNELS-1:0] phases;
 	wire [31:0] adc_sample_count;
 
 	always @(posedge S_AXI_ACLK) begin
@@ -514,21 +508,23 @@
 	    end else begin
 			slv_reg7 <= adc_sample_count;
 			slv_reg8 <= {15'b0, adc_data_wire};
-			slv_reg9 <= {15'b0, phase0};
-	        slv_reg10 <= {15'b0, phase1};
-	        slv_reg11 <= {15'b0, phase2};
+			slv_reg9 <= phases[31:0];
+	        slv_reg10 <= {15'b0, phases[47:32]};
 	    end
 	end
 
 	// Instantiate iq_demodulator module
-	iq_demodulator u_iq_demodulator (
-	    .clk(S_AXI_ACLK),
-	    .rst(~S_AXI_ARESETN),
-	    .adc_data_reg(adc_data_wire),
-		.adc_sample_count(adc_sample_count),
-	    .phase0(phase0),
-	    .phase1(phase1),
-	    .phase2(phase2)
+	iq_demodulator #(
+	.NUM_CHANNELS(NUM_DEMOD_CHANNELS)
+	)
+	u_iq_demodulator (
+	.clk(S_AXI_ACLK),
+	.rst(~S_AXI_ARESETN),
+	.adc_data_reg(adc_data_wire),
+	.adc_sample_count(adc_sample_count),
+	.phases(phases)
 	);
+	
+	// User logic ends
 
 endmodule

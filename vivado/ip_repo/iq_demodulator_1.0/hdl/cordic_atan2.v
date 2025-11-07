@@ -17,7 +17,7 @@ reg signed [15:0] atan_table [0:ITER-1];
 integer i;
 initial begin
     for (i = 0; i < ITER; i = i + 1)
-        atan_table[i] = $rtoi($atan(2.0**(-i)) * 32768 / 3.1415926535); // scale to [-32768, 32767]
+        atan_table[i] = ($atan(2.0**(-i)) * 32768 / 3.1415926535); // scale to [-32768, 32767]
 end
 
 // CORDIC rotation mode
