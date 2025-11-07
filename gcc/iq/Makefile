@@ -15,7 +15,7 @@ LD := $(CROSS_COMPILE)-ld
 
 # More warnings.
 CFLAGS := -Wall -Wextra
-CXXFLAGS := -Wall -Wextra -g -O1 -gdwarf-4
+CXXFLAGS := -Wall -Wextra #-g -O1 -gdwarf-4
 
 # The minimal linux does not have shared libraries to dynamically link to so
 # executable must be statically linked.
@@ -29,7 +29,6 @@ LDFLAGS := -static
 # First target is the default so name it as such.
 default: $(SELF)
 
-DEPS := iq.o
 $(SELF): $(DEPS)
 
 # For this target to work you need to have ssh setup appropriately using

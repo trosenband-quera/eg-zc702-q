@@ -7,7 +7,6 @@
 
 #define XADC_BASE_ADDR  0x43C00000  // Replace with your actual base address
 #define XADC_SPAN       0x1000
-#define XADC_VPVN_REG   0x04  // see UG480 for register offsets
 
 #include <sys/time.h>
 #include <getopt.h>
@@ -23,7 +22,7 @@ int main(int argc, char *argv[]) {
     volatile unsigned int *xadc_reg;
 
     // Default values
-    unsigned nmax = 20;
+    unsigned nmax = 10;
     int showraw = 1;      // Show raw values by default
     int showscaled = 0;   // Show scaled values if requested
     int quiet = 0;        // Do not display data if set
@@ -124,6 +123,8 @@ int main(int argc, char *argv[]) {
     const float scale[8] = {1, 1, 1, 1, 1, 1, 3, 1}; // see UG480, p. 33
     const unsigned bipolar[8] = {1,     0,        0,       0,       0,        0,    0, 0};
     const unsigned offset = 0x00;
+    int sleepval = ms * 1000;
+    long us_prev = 0;
 
     struct timeval stop, start;
     gettimeofday(&start, NULL);
@@ -141,7 +142,7 @@ int main(int argc, char *argv[]) {
         }
 
         gettimeofday(&stop, NULL);
-        int us = (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec;
+        long us = (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec;
 
         std::vector<unsigned> raw_values;
         for (auto ch : channels_to_read) {
@@ -153,14 +154,14 @@ int main(int argc, char *argv[]) {
         data_buffer.emplace_back(us, raw_values);
 
         if (!quiet && showraw) {
-            printf("   RAW %6d us:", us);
+            printf("   RAW %6ld us:", us);
             for (size_t i = 0; i < raw_values.size(); ++i) {
                 printf("   0x%04X", raw_values[i]);
             }
             printf("\n");
         }
         if (!quiet && showscaled) {
-            printf("Scaled %6d us:", us);
+            printf("Scaled %6ld us:", us);
             for (size_t i = 0; i < raw_values.size(); ++i) {
                 int low_scaled = raw_values[i] >> 4;
                 if (bipolar[channels_to_read[i]] && low_scaled >= 0x800)
@@ -173,8 +174,11 @@ int main(int argc, char *argv[]) {
             }
             printf("\n");
         }
-
-        usleep(1000 * ms);
+        unsigned diff_us = us - us_prev;
+        us_prev = us;
+        sleepval -= (diff_us - 1000 * ms) / 10;
+        if (sleepval > 0)
+            usleep(sleepval);
         n++;
     }
 
