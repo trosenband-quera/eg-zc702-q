@@ -11,6 +11,7 @@ module iq_demodulator (
 // DDS parameters
 localparam PHASE_WIDTH = 32;
 localparam LUT_SIZE = 256;
+localparam COS_OFFSET = LUT_SIZE / 4;
 localparam SAMPLE_RATE = 1000000;
 localparam FREQ0 =    100000;
 localparam FREQ1 =    110000;
@@ -26,32 +27,41 @@ reg [PHASE_WIDTH-1:0] dds_phase_acc0 = 0;
 reg [PHASE_WIDTH-1:0] dds_phase_acc1 = 0;
 reg [PHASE_WIDTH-1:0] dds_phase_acc2 = 0;
 
-// LUT for sine and cosine
+// DDS phase accumulators (separate for sin and cos)
+reg [PHASE_WIDTH-1:0] dds_phase_acc0_sin = 0;
+reg [PHASE_WIDTH-1:0] dds_phase_acc0_cos = 0;
+reg [PHASE_WIDTH-1:0] dds_phase_acc1_sin = 0;
+reg [PHASE_WIDTH-1:0] dds_phase_acc1_cos = 0;
+reg [PHASE_WIDTH-1:0] dds_phase_acc2_sin = 0;
+reg [PHASE_WIDTH-1:0] dds_phase_acc2_cos = 0;
+
+// LUT for sine only
 reg signed [15:0] sin_lut [0:LUT_SIZE-1];
-reg signed [15:0] cos_lut [0:LUT_SIZE-1];
 
 // Initialize LUT
 integer i;
 initial begin
     for (i = 0; i < LUT_SIZE; i = i + 1) begin
         sin_lut[i] = $rtoi(32767 * $sin(2.0 * 3.1415926535 * i / LUT_SIZE));
-        cos_lut[i] = $rtoi(32767 * $cos(2.0 * 3.1415926535 * i / LUT_SIZE));
     end
 end
 
-// DDS update
-wire [7:0] addr0 = dds_phase_acc0[PHASE_WIDTH-1 -: 8];
-wire [7:0] addr1 = dds_phase_acc1[PHASE_WIDTH-1 -: 8];
-wire [7:0] addr2 = dds_phase_acc2[PHASE_WIDTH-1 -: 8];
+// DDS update (separate for sin and cos)
+wire [7:0] addr0_sin = dds_phase_acc0_sin[PHASE_WIDTH-1 -: 8];
+wire [7:0] addr0_cos = dds_phase_acc0_cos[PHASE_WIDTH-1 -: 8];
+wire [7:0] addr1_sin = dds_phase_acc1_sin[PHASE_WIDTH-1 -: 8];
+wire [7:0] addr1_cos = dds_phase_acc1_cos[PHASE_WIDTH-1 -: 8];
+wire [7:0] addr2_sin = dds_phase_acc2_sin[PHASE_WIDTH-1 -: 8];
+wire [7:0] addr2_cos = dds_phase_acc2_cos[PHASE_WIDTH-1 -: 8];
 
-// Mixers
+// Mixers (use same LUT for sin and cos)
 wire signed [15:0] in_signal = adc_data_reg;
-wire signed [31:0] i0 = in_signal * cos_lut[addr0];
-wire signed [31:0] q0 = in_signal * sin_lut[addr0];
-wire signed [31:0] i1 = in_signal * cos_lut[addr1];
-wire signed [31:0] q1 = in_signal * sin_lut[addr1];
-wire signed [31:0] i2 = in_signal * cos_lut[addr2];
-wire signed [31:0] q2 = in_signal * sin_lut[addr2];
+wire signed [31:0] i0 = in_signal * sin_lut[addr0_cos];
+wire signed [31:0] q0 = in_signal * sin_lut[addr0_sin];
+wire signed [31:0] i1 = in_signal * sin_lut[addr1_cos];
+wire signed [31:0] q1 = in_signal * sin_lut[addr1_sin];
+wire signed [31:0] i2 = in_signal * sin_lut[addr2_cos];
+wire signed [31:0] q2 = in_signal * sin_lut[addr2_sin];
 
 // Simple moving average filter (low-pass)
 reg signed [31:0] i_avg0 = 0, q_avg0 = 0;
@@ -68,18 +78,25 @@ always @(posedge clk) begin
         adc_data_reg <= 0;
         prev_xadc_ready <= 0;
 
-        dds_phase_acc0 <= 0;
-        dds_phase_acc1 <= 0;
-        dds_phase_acc2 <= 0;
+        dds_phase_acc0_sin <= 0;
+        dds_phase_acc0_cos <= COS_OFFSET;
+        dds_phase_acc1_sin <= 0;
+        dds_phase_acc1_cos <= COS_OFFSET;
+        dds_phase_acc2_sin <= 0;
+        dds_phase_acc2_cos <= COS_OFFSET;
+
     end else begin
         if (xadc_ready && !prev_xadc_ready) begin
             adc_sample_count <= adc_sample_count + 1;
             adc_data_reg <= adc_data;
 
-            // Update DDS phase accumulators
-            dds_phase_acc0 <= dds_phase_acc0 + DDS_PHASE_INC0;
-            dds_phase_acc1 <= dds_phase_acc1 + DDS_PHASE_INC1;
-            dds_phase_acc2 <= dds_phase_acc2 + DDS_PHASE_INC2;
+            // Update DDS phase accumulators (separate for sin and cos)
+            dds_phase_acc0_sin <= dds_phase_acc0_sin + DDS_PHASE_INC0;
+            dds_phase_acc0_cos <= dds_phase_acc0_cos + DDS_PHASE_INC0;
+            dds_phase_acc1_sin <= dds_phase_acc1_sin + DDS_PHASE_INC1;
+            dds_phase_acc1_cos <= dds_phase_acc1_cos + DDS_PHASE_INC1;
+            dds_phase_acc2_sin <= dds_phase_acc2_sin + DDS_PHASE_INC2;
+            dds_phase_acc2_cos <= dds_phase_acc2_cos + DDS_PHASE_INC2;
 
             // Update moving average filters
             i_avg0 <= (i_avg0 >> 1) + (i0 >> 1);
