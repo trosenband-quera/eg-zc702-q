@@ -1,4 +1,8 @@
-module iq_demodulator (
+module iq_demodulator #(
+    parameter integer FREQ0 = 100000,
+    parameter integer FREQ1 = 110000,
+    parameter integer FREQ2 = 120000
+) (
     input wire clk,                  // 100 MHz system clock
     input wire rst,
     output reg [15:0] adc_data_reg,
@@ -13,9 +17,6 @@ localparam PHASE_WIDTH = 32;
 localparam LUT_SIZE = 256;
 localparam COS_OFFSET = LUT_SIZE / 4;
 localparam SAMPLE_RATE = 1000000;
-localparam FREQ0 =    100000;
-localparam FREQ1 =    110000;
-localparam FREQ2 =    120000;
 
 // Phase increment = (freq * LUT_SIZE) / SAMPLE_RATE
 localparam DDS_PHASE_INC0 = (FREQ0 * LUT_SIZE) / SAMPLE_RATE;
