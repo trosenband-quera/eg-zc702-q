@@ -518,14 +518,6 @@
 
 	// Register mapping for XADC configuration and status:
 	// Each 32-bit slave register controls two 16-bit XADC config registers:
-	// slv_reg0[15:0]   : INIT_40
-	// slv_reg0[31:16]  : INIT_41
-	// slv_reg1[15:0]   : INIT_42
-	// slv_reg1[31:16]  : INIT_48
-	// slv_reg2[15:0]   : INIT_49
-	// slv_reg2[31:16]  : INIT_4A
-	// slv_reg3[15:0]   : INIT_4B
-	// slv_reg3[31:16]  : INIT_4C
 	// slv_reg4: Reserved or future use
 	// slv_reg5: Reserved or future use
 	// slv_reg6: Reserved or future use
@@ -572,38 +564,15 @@
 	    end
 	end
 
-	// Instantiate iq_demodulator and connect XADC config from slave registers
-	wire [15:0] INIT_40 = slv_reg0[15:0];
-	wire [15:0] INIT_41 = slv_reg0[31:16];
-	wire [15:0] INIT_42 = slv_reg1[15:0];
-	wire [15:0] INIT_48 = slv_reg1[31:16];
-	wire [15:0] INIT_49 = slv_reg2[15:0];
-	wire [15:0] INIT_4A = slv_reg2[31:16];
-	wire [15:0] INIT_4B = slv_reg3[15:0];
-	wire [15:0] INIT_4C = slv_reg3[31:16];
-	wire [15:0] INIT_4D = slv_reg4[15:0];
-	wire [15:0] INIT_4E = slv_reg4[31:16];
-	wire [15:0] INIT_4F = slv_reg5[15:0];
-
+	// Instantiate iq_demodulator module
 	iq_demodulator u_iq_demodulator (
 	    .clk(S_AXI_ACLK),
 	    .rst(~S_AXI_ARESETN),
-	    .adc_data(), // connect as needed
-		.adc_ready(), // connect as needed
-	    .phase_100k(), // connect as needed
-	    .phase_110k(), // connect as needed
-	    .phase_120k(), // connect as needed
-	    .INIT_40(INIT_40),
-	    .INIT_41(INIT_41),
-	    .INIT_42(INIT_42),
-	    .INIT_48(INIT_48),
-	    .INIT_49(INIT_49),
-	    .INIT_4A(INIT_4A),
-	    .INIT_4B(INIT_4B),
-	    .INIT_4C(INIT_4C),
-	    .INIT_4D(INIT_4D),
-	    .INIT_4E(INIT_4E),
-	    .INIT_4F(INIT_4F)
+	    .adc_data_reg(adc_data_wire),
+		.adc_sample_count(adc_sample_count),
+	    .phase_100k(phase_100k),
+	    .phase_110k(phase_110k),
+	    .phase_120k(phase_120k)
 	);
 
 endmodule
