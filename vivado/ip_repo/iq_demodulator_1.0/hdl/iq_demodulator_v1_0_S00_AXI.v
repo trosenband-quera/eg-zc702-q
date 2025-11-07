@@ -231,6 +231,17 @@
 	begin
 	  if ( S_AXI_ARESETN == 1'b0 )
 	    begin
+			slv_reg0 <= 0;
+			slv_reg1 <= 0;
+			slv_reg2 <= 0;
+			slv_reg3 <= 0;
+			slv_reg4 <= 0;
+	        slv_reg5 <= 0;
+			slv_reg6 <= 0;
+			slv_reg12 <= 0;
+			slv_reg13 <= 0;
+			slv_reg14 <= 0;
+			slv_reg15 <= 0;
 	    end 
 	  else begin
 	    if (slv_reg_wren)
@@ -285,41 +296,6 @@
 	                // Slave register 6
 	                slv_reg6[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
 	              end  
-	          4'h7:
-	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
-	                // Respective byte enables are asserted as per write strobes 
-	                // Slave register 7
-	                slv_reg7[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
-	              end  
-	          4'h8:
-	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
-	                // Respective byte enables are asserted as per write strobes 
-	                // Slave register 8
-	                slv_reg8[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
-	              end  
-	          4'h9:
-	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
-	                // Respective byte enables are asserted as per write strobes 
-	                // Slave register 9
-	                slv_reg9[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
-	              end  
-	          4'hA:
-	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
-	                // Respective byte enables are asserted as per write strobes 
-	                // Slave register 10
-	                slv_reg10[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
-	              end  
-	          4'hB:
-	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
-	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
-	                // Respective byte enables are asserted as per write strobes 
-	                // Slave register 11
-	                slv_reg11[(byte_index*8) +: 8] <= S_AXI_WDATA[(byte_index*8) +: 8];
-	              end  
 	          4'hC:
 	            for ( byte_index = 0; byte_index <= (C_S_AXI_DATA_WIDTH/8)-1; byte_index = byte_index+1 )
 	              if ( S_AXI_WSTRB[byte_index] == 1 ) begin
@@ -356,11 +332,6 @@
 	                      slv_reg4 <= slv_reg4;
 	                      slv_reg5 <= slv_reg5;
 	                      slv_reg6 <= slv_reg6;
-	                      slv_reg7 <= slv_reg7;
-	                      slv_reg8 <= slv_reg8;
-	                      slv_reg9 <= slv_reg9;
-	                      slv_reg10 <= slv_reg10;
-	                      slv_reg11 <= slv_reg11;
 	                      slv_reg12 <= slv_reg12;
 	                      slv_reg13 <= slv_reg13;
 	                      slv_reg14 <= slv_reg14;
@@ -535,26 +506,11 @@
 
 	always @(posedge S_AXI_ACLK) begin
 	    if (S_AXI_ARESETN == 1'b0) begin
-			//.INIT_40(16'h7403), // no acg, continuous sampling, bipolar, single channel VP/VN
-			//.INIT_41(16'h2F0F), // no sequencer, no alarms, no calibration
-			//.INIT_42(16'h0400), // ADCCLK = clk/4.  26 ADCCLK per conversion
-			//.INIT_48(16'h0000), // Sequencer mode
-			slv_reg0 <= 32'h2F0F7403;
-			slv_reg1 <= 32'h00000400;
-			slv_reg2 <= 0;
-			slv_reg3 <= 0;
-			slv_reg4 <= 0;
-	        slv_reg5 <= 0;
-			slv_reg6 <= 0;
-	        slv_reg7 <= 0;
+			slv_reg7 <= 0;
 	        slv_reg8 <= 0;
 	        slv_reg9 <= 0;
 			slv_reg10 <= 0;
 			slv_reg11 <= 0;
-			slv_reg12 <= 0;
-			slv_reg13 <= 0;
-			slv_reg14 <= 0;
-			slv_reg15 <= 0;
 	    end else begin
 			slv_reg7 <= adc_sample_count;
 			slv_reg8 <= {15'b0, adc_data_wire};
