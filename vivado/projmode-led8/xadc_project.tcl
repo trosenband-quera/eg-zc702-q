@@ -101,7 +101,7 @@ if { $::argc > 0 } {
 set orig_proj_dir "[file normalize "$origin_dir/"]"
 
 # Create project
-create_project ${_xil_proj_name_} ./${_xil_proj_name_} -part xc7z020clg484-1
+create_project ${_xil_proj_name_} ./${_xil_proj_name_} -part xc7z020clg484-1 -force
 
 # Set the directory path for the new project
 set proj_dir [get_property directory [current_project]]
@@ -178,9 +178,9 @@ if {[string equal [get_filesets -quiet constrs_1] ""]} {
 set obj [get_filesets constrs_1]
 
 # Add/Import constrs file and set constrs file properties
-set file "[file normalize ${origin_dir}/projmode-led8.srcs/constrs_1/imports/constrs_1/led8.xdc]"
-set file_imported [import_files -fileset constrs_1 [list $file]]
-set file "constrs_1/led8.xdc"
+set file "[file normalize "$origin_dir/projmode-led8.srcs/constrs_1/led8.xdc"]"
+set file_imported [import_files -fileset constrs_1 $file]
+set file "led8.xdc"
 set file_obj [get_files -of_objects [get_filesets constrs_1] [list "*$file"]]
 set_property -name "file_type" -value "XDC" -objects $file_obj
 

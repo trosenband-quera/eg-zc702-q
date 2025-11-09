@@ -59,14 +59,20 @@ reg signed [31:0] i_avg[NUM_CHANNELS-1:0];
 reg signed [31:0] q_avg[NUM_CHANNELS-1:0];
 
 // ADC data sampling and counting, on xadc_ready rising edge
+// see UG480 p. 83-85 for a complete example which seems to
+// contradict p. 74 "DEN should only go high for one DCLK period."
+
 reg prev_xadc_ready;
+wire [15:0] adc_data;
+
 always @(posedge clk) begin
 	if (rst) begin
 		adc_sample_count <= 0;
 		adc_data_reg <= 0;
 		prev_xadc_ready <= 0;
 	end else begin
-		if (xadc_ready && !prev_xadc_ready) begin
+		// init read
+		if (xadc_ready == 1 && prev_xadc_ready == 0) begin
 			adc_sample_count <= adc_sample_count + 1;
 			adc_data_reg <= adc_data;
 		end
@@ -84,12 +90,14 @@ generate
 				i_avg[ch] <= 0;
 				q_avg[ch] <= 0;
 			end else begin
-				if (xadc_ready && !prev_xadc_ready) begin
+				if (xadc_ready == 1 && prev_xadc_ready == 0) begin
 					dds_phase_acc_sin[ch] <= dds_phase_acc_sin[ch] + (FREQ_HZ[(ch*24+23):(ch*24)] * LUT_SIZE) / SAMPLE_RATE_HZ;
 					dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] + (FREQ_HZ[(ch*24+23):(ch*24)] * LUT_SIZE) / SAMPLE_RATE_HZ;
 					i_avg[ch] <= (i_avg[ch] >> 1) + (mixerI[ch] >> 1);
 					q_avg[ch] <= (q_avg[ch] >> 1) + (mixerQ[ch] >> 1);
 				end
+				
+				
 			end
 		end
 
@@ -107,8 +115,8 @@ endgenerate
 wire xadc_ready;
 
 XADC #( // see Xilinx UG480 for details, p. 22 and 44
-    .INIT_40(16'h7603), // no avg, continuous sampling, bipolar, single channel VP/VN
-    .INIT_41(16'h2F0F), // no sequencer, no alarms, no calibration
+    .INIT_40(16'h0403), // no avg, continuous sampling, bipolar, single channel VP/VN
+    .INIT_41(16'h3F0F), // no sequencer, no alarms, no calibration
     .INIT_42(16'h0400), // ADCCLK = clk/4.  26 ADCCLK per conversion
     .INIT_48(16'h0000), // Sequencer mode
     .INIT_49(16'h0000),
@@ -117,23 +125,29 @@ XADC #( // see Xilinx UG480 for details, p. 22 and 44
     .INIT_4C(16'h0000),
     .INIT_4D(16'h0000),
     .INIT_4E(16'h0000),
-    .INIT_4F(16'h0000)
+    .INIT_4F(16'h0000),
+    .SIM_MONITOR_FILE("voltages.txt")// Analog Stimulus file for simulation
 ) adc_inst (
 	.CONVST(1'b0), // not used
 	.CONVSTCLK(1'b0), // not used
     .DADDR(7'h03),    // Address for channel selection (Vp/Vn), see UH480, p. 36
     .DCLK(clk),
-    .DEN(1'b1),
+    .DEN(eoc),
     .DWE(1'b0),
     .DI(16'h0000),
     .DRDY(xadc_ready),
     .DO(adc_data),
     .RESET(rst),
+    .EOC (eoc),
+	.EOS (eos),
+	.BUSY (busy),
     .VAUXN(16'h0000),
 	.VAUXP(16'h0000),
 	.JTAGBUSY(),// not used
 	.JTAGLOCKED(),// not used
-	.JTAGMODIFIED() // not used
+	.JTAGMODIFIED(), // not used
+	.VP (VP),
+	.VN (VN)
 );
 
 endmodule
