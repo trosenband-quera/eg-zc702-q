@@ -56,13 +56,13 @@ run: transfer
 
 .PHONY : getdata
 getdata:
-	ssh zc702 -C "./$(SELF) -c 3 -s -q -f 1.csv -n 200 -m 1"
+	ssh zc702 -C "./$(SELF) -c 0 -s -q -f 1.csv -n 200 -m 1"
 	scp zc702:~/1.csv .
 	python3 plot_csv.py 1.csv
 
 .PHONY : gethist
 gethist:
-	ssh zc702 -C "./$(SELF) -c 3 -s -q -f 1.csv -n 2000 -m 1"
+	ssh zc702 -C "./$(SELF) -c 0 -s -q -f 1.csv -n 2000 -m 1"
 	scp zc702:~/1.csv .
 	python3 plot_csv.py 1.csv --hist-raw
 

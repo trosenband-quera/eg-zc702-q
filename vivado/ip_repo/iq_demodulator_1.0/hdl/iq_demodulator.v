@@ -117,7 +117,7 @@ wire xadc_ready;
 XADC #( // see Xilinx UG480 for details, p. 22 and 44
     .INIT_40(16'h0403), // no avg, continuous sampling, bipolar, single channel VP/VN
     .INIT_41(16'h3F0F), // no sequencer, no alarms, no calibration
-    .INIT_42(16'h0400), // ADCCLK = clk/4.  26 ADCCLK per conversion
+    .INIT_42(16'h0200), // ADCCLK = clk/4.  26 ADCCLK per conversion
     .INIT_48(16'h0000), // Sequencer mode
     .INIT_49(16'h0000),
     .INIT_4A(16'h0000),
