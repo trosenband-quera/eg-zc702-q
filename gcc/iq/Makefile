@@ -42,7 +42,7 @@ $(SELF): $(DEPS)
 #		LogLevel QUIET
 .PHONY : transfer
 transfer: default
-	scp $(SELF) zc702:~/
+	#scp $(SELF) zc702:~/
 
 .PHONY: xdevcfg
 xdevcfg:
@@ -62,7 +62,7 @@ getdata:
 
 .PHONY : gethist
 gethist:
-	ssh zc702 -C "./$(SELF) -c 0 -s -q -f 1.csv -n 2000 -m 1"
+	ssh zc702 -C "./$(SELF) -c 0,1 -s -q -f 1.csv -n 2000 -m 1"
 	scp zc702:~/1.csv .
 	python3 plot_csv.py 1.csv --hist-raw
 

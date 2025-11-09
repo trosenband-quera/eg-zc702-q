@@ -16,21 +16,22 @@ def plot_csv(filename, hist_raw=False):
     # Convert to numpy array for efficient slicing
     arr = np.array(data, dtype=float)
     time = arr[:, 0] / 1e3  # Convert us to ms for x-axis
-
+    print(f"Plotting data from {filename} with shape {arr.shape}")
     if hist_raw:
-        for i in range(1, arr.shape[1]):
-            data_i = arr[:, i]
-            min_val = int(np.min(data_i))
-            max_val = int(np.max(data_i))
-            bins = np.arange(min_val, max_val + 2) - 0.5  # Bin edges so each bin is 1 wide
-            std = np.std(data_i)
-            plt.hist(
-                data_i,
-                bins=bins,
-                alpha=0.6,
-                label=f"{header[i]} (std={std:.2f})",
-                edgecolor='black'  # Add black lines around bars
-            )
+        # for i in range(1):
+        i=1
+        data_i = arr[:, i]
+        min_val = int(np.min(data_i))
+        max_val = int(np.max(data_i))
+        bins = np.arange(min_val, max_val + 2) - 0.5  # Bin edges so each bin is 1 wide
+        std = np.std(data_i)
+        plt.hist(
+            data_i,
+            bins=bins,
+            alpha=0.6,
+            label=f"{header[i]} (std={std:.2f})",
+            edgecolor='black'  # Add black lines around bars
+        )
         plt.xlabel("Raw Value")
         plt.ylabel("Count")
         plt.title("Histogram of XADC RAW Data")
