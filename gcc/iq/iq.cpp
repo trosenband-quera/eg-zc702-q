@@ -4,6 +4,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <fstream>
+#include <time.h>
 
 #define XADC_BASE_ADDR  0x43C00000  // Replace with your actual base address
 #define XADC_SPAN       0x1000
@@ -99,12 +100,6 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Failed to open CSV file: %s\n", csv_filename.c_str());
             return 1;
         }
-        // Write CSV header: always raw, optionally scaled
-        csvfile << "time_us";
-        for (auto ch : channels_to_read) {
-            csvfile << "," << channel_names[ch];
-        }
-        csvfile << std::endl;
     }
 
     fd = open("/dev/mem", O_RDWR | O_SYNC);
@@ -127,12 +122,17 @@ int main(int argc, char *argv[]) {
     long us0 = 0;
 	long us;
 	
-    struct timeval stop, start;
-    gettimeofday(&start, NULL);
-    
+    struct timespec start, stop;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    printf("Start time: %ld.%09ld\n", start.tv_sec, start.tv_nsec);
+
     unsigned nsamp0, nsamp;
-    unsigned nch = channel_offsets.size();
     
+    // Replace vector-based buffer with a one-dimensional dynamically allocated array
+    unsigned max_samples = nmax;
+    unsigned num_channels = channels_to_read.size();
+    // Allocate a 1D array: data_buffer[sample * (num_channels + 1) + channel]
+    unsigned *data_buffer = new unsigned[max_samples * (num_channels + 1)];
     while (n < nmax) {
         if(n % nmax == 0) {
             printf("  offset address:  ");
@@ -146,40 +146,44 @@ int main(int argc, char *argv[]) {
             printf("\n");
         }
 
-        gettimeofday(&stop, NULL);
-        us = (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec;
-		std::vector<unsigned> raw_values(channels_to_read.size());
-        for (auto ch : channels_to_read) {
-			if(channel_offsets[ch] % 4 == 0)
-				reg = *(volatile unsigned int *)((char *)map_base + offset + (channel_offsets[ch] & 0xfffc));
-			else
-				reg = reg >> 16;
-				
+        clock_gettime(CLOCK_MONOTONIC, &stop);
+        us = (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec) / 1000;
+
+        // Store time and raw values in the buffer
+        data_buffer[n * (num_channels + 1) + 0] = us;
+        for (size_t i = 0; i < num_channels; ++i) {
+            unsigned ch = channels_to_read[i];
+            if(channel_offsets[ch] % 4 == 0)
+                reg = *(volatile unsigned int *)((char *)map_base + offset + (channel_offsets[ch] & 0xfffc));
+            else
+                reg = reg >> 16;
+
             unsigned int raw = reg;
             if(width[ch] == 4)
-				raw_values[ch] = raw;
-			else
-				raw_values[ch] = raw & 0xffff;
+                data_buffer[n * (num_channels + 1) + (i + 1)] = raw;
+            else
+                data_buffer[n * (num_channels + 1) + (i + 1)] = raw & 0xffff;
         }
-        data_buffer.emplace_back(us, raw_values);
-        
+
+        nsamp = data_buffer[n * (num_channels + 1) + 1];
+
         if(n == 0) {
 			us0 = us;
-			nsamp0 = raw_values[1];
+			nsamp0 = nsamp;
 		}
-		nsamp = raw_values[1];
 		
         if (!quiet && showraw) {
             printf("   RAW %6ld us:", us);
-            for (size_t i = 0; i < raw_values.size(); ++i) {
-                printf(width[channels_to_read[i]] == 4 ? " 0x%08X" : "   0x%04X", raw_values[i]);
+            for (size_t i = 0; i < num_channels; ++i) {
+                printf(width[channels_to_read[i]] == 4 ? " 0x%08X" : "   0x%04X", 
+                       data_buffer[n * (num_channels + 1) + (i + 1)]);
             }
             printf("\n");
         }
         if (!quiet && showscaled) {
             printf("Scaled %6ld us:", us);
-            for (size_t i = 0; i < raw_values.size(); ++i) {
-				long x = raw_values[i];
+            for (size_t i = 0; i < num_channels; ++i) {
+				long x = data_buffer[n * (num_channels + 1) + (i + 1)];
 				int ch = channels_to_read[i];
 				if (bipolar[ch]) {
 					if (width[ch] == 2 && x & 0x8000)
@@ -211,29 +215,35 @@ int main(int argc, char *argv[]) {
 		printf("sample rate: %7.3f kHz\n", 1000.0*(nsamp-nsamp0)/dt);
 
     if (write_csv) {
-        // Write CSV header already done above
+        // Write CSV header
+        csvfile << "time_us";
+        for (auto ch : channels_to_read) {
+            csvfile << "," << channel_names[ch];
+        }
+        csvfile << std::endl;
 
-        // Write buffered data: always raw
-        for (const auto& entry : data_buffer) {
-            csvfile << entry.first;
-            for (size_t i = 0; i < entry.second.size(); ++i) {
-                long x = entry.second[i];
-                unsigned ch = channels_to_read[i];
-                // If the channel is bipolar, convert to signed 12-bit integer
+        // Write buffered data
+        for (unsigned i = 0; i < n; ++i) {
+            csvfile << data_buffer[i * (num_channels + 1) + 0];
+            for (size_t j = 0; j < num_channels; ++j) {
+                long x = data_buffer[i * (num_channels + 1) + (j + 1)];
+                unsigned ch = channels_to_read[j];
+                // If the channel is bipolar, convert to signed integer
                 if (bipolar[ch]) {
-					if (width[ch] == 2 && x & 0x8000)
-						x -= 0x10000;
-						
-					if (width[ch] == 4 && x & 0x80000000)
-						x -= 0x100000000;
-				}
-                csvfile << "," << x;
-                printf("%ld ", x);
+                    if (width[ch] == 2 && x & 0x8000)
+                        x -= 0x10000;
+                    if (width[ch] == 4 && x & 0x80000000)
+                        x -= 0x100000000;
+                }
+                csvfile << "," << x / (showscaled ? scale[ch] : 1);
             }
             csvfile << std::endl;
         }
         csvfile.close();
     }
+
+    // Free the buffer
+    delete[] data_buffer;
 
     munmap(map_base, XADC_SPAN);
     close(fd);

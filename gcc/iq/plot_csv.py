@@ -42,8 +42,8 @@ def plot_csv(filename, hist_raw=False):
         return
 
     for i in range(1, arr.shape[1]):
-        plt.plot(time, arr[:, i]/65536, label=header[i])
-        plt.scatter(time, arr[:, i]/65536, s=12)
+        plt.plot(time, arr[:, i], label=header[i])
+        plt.scatter(time, arr[:, i], s=12)
 
     plt.xlabel("time (ms)")
     plt.ylabel("Voltage")
