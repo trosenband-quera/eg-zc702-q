@@ -3,8 +3,7 @@ module cordic_atan2 (
     input wire rst,
     input wire signed [15:0] x,  // I component
     input wire signed [15:0] y,  // Q component
-    output reg [15:0] phase,     // Output phase (fixed-point)
-    output reg phase_ready       // Output: high for one clk when phase is valid
+    output reg [15:0] phase      // Output phase (fixed-point)
 );
 
 // Parameters
@@ -44,16 +43,7 @@ always @(posedge clk) begin
         end
 
         phase <= z_reg[ITER];
-        phase_ready <= 1'b1;
-    end
-end
 
-always @(posedge clk) begin
-    if (rst) begin
-        phase_ready <= 0;
-    end else begin
-        // Deassert phase_ready after one clock
-        if (phase_ready) phase_ready <= 0;
     end
 end
 

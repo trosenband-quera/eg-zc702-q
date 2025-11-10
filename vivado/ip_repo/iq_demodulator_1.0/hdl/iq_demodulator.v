@@ -11,9 +11,7 @@ module iq_demodulator #(
     input  wire                         rst,
     output reg  [                 15:0] adc_data_reg,
     output reg  [                 31:0] adc_sample_count,
-    output wire [(16*NUM_CHANNELS-1):0] phases,
-    output wire [NUM_CHANNELS-1:0]      phases_ready,
-    output reg  [                 31:0] phases_count
+    output wire [(16*NUM_CHANNELS-1):0] phases
 );
 
   // DDS parameters
@@ -70,7 +68,6 @@ module iq_demodulator #(
   always @(posedge clk) begin
     if (rst) begin
       adc_sample_count <= 0;
-      phases_count <= 0;
       adc_data_reg <= 0;
       prev_xadc_ready <= 0;
     end else begin
@@ -79,8 +76,6 @@ module iq_demodulator #(
         adc_sample_count <= adc_sample_count + 1;
         adc_data_reg <= adc_data;
       end
-      if(phases_ready[0])
-        phases_count <= phases_count + 1;
       prev_xadc_ready <= xadc_ready;
     end
   end
@@ -113,8 +108,7 @@ module iq_demodulator #(
           .rst(rst),
           .x(i_avg[ch][31:16]),
           .y(q_avg[ch][31:16]),
-          .phase(phases[(16*ch+15):(16*ch)]),
-          .phase_ready(phases_ready[ch])
+          .phase(phases[(16*ch+15):(16*ch)])
       );
     end
   endgenerate
