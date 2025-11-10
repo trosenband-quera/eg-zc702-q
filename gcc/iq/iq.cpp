@@ -27,11 +27,11 @@ int main(int argc, char *argv[]) {
     int showscaled = 0;   // Show scaled values if requested
     int quiet = 0;        // Do not display data if set
     unsigned ms = 5;
-    std::vector<unsigned> channels_to_read = {0,1}; // default: all channels
+    std::vector<unsigned> channels_to_read = {0,1,2,3}; // default: all channels
 
     // Channel names and offsets
-    const char* channel_names[] = {"VP/VN", "NSAMP", "PHASE0", "VCCBRAM"};
-    const unsigned channel_offsets[] = {8*4, 7*4};
+    const char* channel_names[] = {"VP/VN", "NSAMP", "PHASE01", "PHASE2"};
+    const unsigned channel_offsets[] = {8*4, 7*4, 9*4, 10*4};
 
     // Command line options
     int opt;
@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
     gettimeofday(&start, NULL);
     
     unsigned nsamp0;
-    std::vector<unsigned> raw_values(2);
+    std::vector<unsigned> raw_values(channels_to_read.size());
     while (n < nmax) {
         if(n % nmax == 0) {
             printf("  offset address:  ");

@@ -13,8 +13,8 @@ clean:
 	-rm -rf *.hw
 	-rm -rf *.ip_user_files
 	-rm -rf *.runs
-	-rm -rf project2.srcs/sources_1/bd
-	-rm -rf project2
+	-rm -rf srcs/sources_1/bd
+	-rm -rf iq-demod-zynq
 
 # List all Make targets.
 .PHONY : list

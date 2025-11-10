@@ -24,7 +24,6 @@ end
 always @(posedge clk) begin
     if (rst) begin
         phase <= 0;
-        phase_ready <= 0;
     end else begin
         x_reg[0] <= x;
         y_reg[0] <= y;

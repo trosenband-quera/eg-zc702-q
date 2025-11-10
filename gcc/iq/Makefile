@@ -42,11 +42,11 @@ $(SELF): $(DEPS)
 #		LogLevel QUIET
 .PHONY : transfer
 transfer: default
-	#scp $(SELF) zc702:~/
+	scp $(SELF) zc702:~/
 
 .PHONY: xdevcfg
 xdevcfg:
-	cp ../../vivado/project2/project2/project2.runs/impl_1/top_wrapper.bit pl.bit
+	cp ../../vivado/iq_project/iq-demod-zynq/iq-demod-zynq.runs/impl_1/top_wrapper.bit pl.bit
 	scp pl.bit zc702:~/
 	ssh zc702 -C "cat pl.bit > /dev/xdevcfg"
 	
