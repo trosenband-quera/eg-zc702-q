@@ -2,19 +2,22 @@ module iq_demodulator #(
     parameter integer NUM_CHANNELS = 3,
     parameter integer PHASE_WIDTH = 32,
     parameter integer LUT_SIZE = 256,
-    parameter integer SAMPLE_RATE_HZ = 1000000,
+    // ADC sample rate in Hz, 25/26=0.9615384 MHz
+    parameter integer SAMPLE_RATE_HZ = 9615384,
     // LO frequency in Hz, one entry per channel
-    parameter logic [71:0] FREQ_HZ = {24'd100000, 24'd110000, 24'd120000}
+    parameter FREQ_HZ = {32'd100000, 32'd110000, 32'd120000}
 ) (
     input  wire                         clk,               // 100 MHz system clock
     input  wire                         rst,
     output reg  [                 15:0] adc_data_reg,
     output reg  [                 31:0] adc_sample_count,
-    output wire [(16*NUM_CHANNELS-1):0] phases
+    output wire [(16*NUM_CHANNELS-1):0] phases,
+    output wire [NUM_CHANNELS-1:0]      phases_ready,
+    output reg  [                 31:0] phases_count
 );
 
   // DDS parameters
-  localparam integer COS_OFFSET = LUT_SIZE / 4;
+  localparam integer COS_OFFSET = (LUT_SIZE / 4) << 24;
 
   // DDS phase accumulators (separate for sin and cos)
   reg [PHASE_WIDTH-1:0] dds_phase_acc_sin[NUM_CHANNELS-1:0];
@@ -60,15 +63,14 @@ module iq_demodulator #(
   reg signed [31:0] q_avg[NUM_CHANNELS-1:0];
 
   // ADC data sampling and counting, on xadc_ready rising edge
-  // see UG480 p. 83-85 for a complete example which seems to
-  // contradict p. 74 "DEN should only go high for one DCLK period."
-
+  wire xadc_ready;
   reg prev_xadc_ready;
   wire [15:0] adc_data;
 
   always @(posedge clk) begin
     if (rst) begin
       adc_sample_count <= 0;
+      phases_count <= 0;
       adc_data_reg <= 0;
       prev_xadc_ready <= 0;
     end else begin
@@ -77,6 +79,8 @@ module iq_demodulator #(
         adc_sample_count <= adc_sample_count + 1;
         adc_data_reg <= adc_data;
       end
+      if(phases_ready[0])
+        phases_count <= phases_count + 1;
       prev_xadc_ready <= xadc_ready;
     end
   end
@@ -93,14 +97,14 @@ module iq_demodulator #(
         end else begin
           if (xadc_ready == 1 && prev_xadc_ready == 0) begin
             dds_phase_acc_sin[ch] <= dds_phase_acc_sin[ch] +
-                                     (FREQ_HZ[(ch*24+23):(ch*24)] * LUT_SIZE) / SAMPLE_RATE_HZ;
+                                     (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
+                                       SAMPLE_RATE_HZ) << 18);
             dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] +
-                                     (FREQ_HZ[(ch*24+23):(ch*24)] * LUT_SIZE) / SAMPLE_RATE_HZ;
-            i_avg[ch] <= (i_avg[ch] >> 1) + (mixerI[ch] >> 1);
-            q_avg[ch] <= (q_avg[ch] >> 1) + (mixerQ[ch] >> 1);
+                                     (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
+                                       SAMPLE_RATE_HZ) << 18);
+            i_avg[ch] <= 63*(i_avg[ch] >> 6) + (mixerI[ch] >> 6);
+            q_avg[ch] <= 63*(q_avg[ch] >> 6) + (mixerQ[ch] >> 6);
           end
-
-
         end
       end
 
@@ -109,13 +113,11 @@ module iq_demodulator #(
           .rst(rst),
           .x(i_avg[ch][31:16]),
           .y(q_avg[ch][31:16]),
-          .phase(phases[(16*ch+15):(16*ch)])
+          .phase(phases[(16*ch+15):(16*ch)]),
+          .phase_ready(phases_ready[ch])
       );
     end
   endgenerate
-
-  // XADC
-  wire xadc_ready;
 
   XADC #(  // see Xilinx UG480 for details, p. 22 and 44
       .INIT_40(16'h0403),  // no avg, continuous sampling, bipolar, single channel VP/VN
