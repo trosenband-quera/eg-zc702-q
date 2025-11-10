@@ -120,14 +120,18 @@ int main(int argc, char *argv[]) {
 
     unsigned n = 0;
 
-    const float scale[8] = {1, 1, 1, 1, 1, 1, 3, 1}; // see UG480, p. 33
+    const float scale[8] = {1/4096.0/4.0, 1, 1, 1, 1, 1, 3, 1}; // see UG480, p. 33
     const unsigned bipolar[8] = {1,     0,        0,       0,       0,        0,    0, 0};
     const unsigned offset = 0x00;
     int sleepval = ms * 1000;
-    long us_prev = 0;
-
+    long us0 = 0;
+	long us;
+	
     struct timeval stop, start;
     gettimeofday(&start, NULL);
+    
+    unsigned nsamp0;
+    std::vector<unsigned> raw_values(2);
     while (n < nmax) {
         if(n % nmax == 0) {
             printf("  offset address:  ");
@@ -142,17 +146,20 @@ int main(int argc, char *argv[]) {
         }
 
         gettimeofday(&stop, NULL);
-        long us = (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec;
+        us = (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec;
 
-        std::vector<unsigned> raw_values;
         for (auto ch : channels_to_read) {
             xadc_reg = (volatile unsigned int *)((char *)map_base + offset + channel_offsets[ch]);
             unsigned int raw = *xadc_reg;
-            unsigned low = raw & 0xffff;
-            raw_values.push_back(low);
+            raw_values[ch] = raw;
         }
         data_buffer.emplace_back(us, raw_values);
-
+        
+        if(n == 0) {
+			us0 = us;
+			nsamp0 = raw_values[1];
+		}
+		
         if (!quiet && showraw) {
             printf("   RAW %6ld us:", us);
             for (size_t i = 0; i < raw_values.size(); ++i) {
@@ -163,24 +170,31 @@ int main(int argc, char *argv[]) {
         if (!quiet && showscaled) {
             printf("Scaled %6ld us:", us);
             for (size_t i = 0; i < raw_values.size(); ++i) {
-                int low_scaled = raw_values[i] >> 4;
-                if (bipolar[channels_to_read[i]] && low_scaled >= 0x800)
-                    low_scaled = low_scaled - 0xfff - 1;
-                float val = low_scaled * scale[channels_to_read[i]] / 4096.0;
+				float val = raw_values[i];
+				if(i==0) {
+					long x = raw_values[i];
+					if (bipolar[channels_to_read[i]] && x >= 0x8000)
+						x = x - 0xffff - 1;
+						
+					val = x * scale[channels_to_read[i]];
+				}
                 if (channels_to_read[i] == 0)
-                    printf(" %7.2fC", val);
+                    printf(" %8.4f", val);
                 else
-                    printf(" %7.4fV", val);
+                    printf(" %8.0f", val);
             }
             printf("\n");
         }
-        unsigned diff_us = us - us_prev;
-        us_prev = us;
-        sleepval -= (diff_us - 1000 * ms) / 10;
+        //unsigned diff_us = us - us_prev;
+        //sleepval -= (diff_us - 1000 * ms) / 10;
         if (sleepval > 0)
             usleep(sleepval);
         n++;
     }
+    
+    float dt = us-us0;
+    if(dt>0)
+		printf("sample rate: %7.3f kHz\n", 1000.0*(raw_values[1]-nsamp0)/dt);
 
     if (write_csv) {
         // Write CSV header already done above
