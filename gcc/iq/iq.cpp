@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
 
     // Channel names and offsets
     const char* channel_names[] = {"VP/VN", "NSAMP", "PHASE0", "VCCBRAM"};
-    const unsigned channel_offsets[] = {0x08, 0x07, 0x09, 0x0C};
+    const unsigned channel_offsets[] = {8*4, 7*4};
 
     // Command line options
     int opt;
