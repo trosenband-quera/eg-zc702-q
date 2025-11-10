@@ -213,10 +213,6 @@ module iq_demodulator_v1_0_S00_AXI #(
       slv_reg4  <= 0;
       slv_reg5  <= 0;
       slv_reg6  <= 0;
-      slv_reg12 <= 0;
-      slv_reg13 <= 0;
-      slv_reg14 <= 0;
-      slv_reg15 <= 0;
     end else begin
       if (slv_reg_wren) begin
         case (axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB])
@@ -297,50 +293,6 @@ module iq_demodulator_v1_0_S00_AXI #(
             // Slave register 6
             slv_reg6[(byte_index*8)+:8] <= S_AXI_WDATA[(byte_index*8)+:8];
           end
-          4'hC:
-          for (
-              byte_index = 0;
-              byte_index <= (C_S_AXI_DATA_WIDTH / 8) - 1;
-              byte_index = byte_index + 1
-          )
-          if (S_AXI_WSTRB[byte_index] == 1) begin
-            // Respective byte enables are asserted as per write strobes
-            // Slave register 12
-            slv_reg12[(byte_index*8)+:8] <= S_AXI_WDATA[(byte_index*8)+:8];
-          end
-          4'hD:
-          for (
-              byte_index = 0;
-              byte_index <= (C_S_AXI_DATA_WIDTH / 8) - 1;
-              byte_index = byte_index + 1
-          )
-          if (S_AXI_WSTRB[byte_index] == 1) begin
-            // Respective byte enables are asserted as per write strobes
-            // Slave register 13
-            slv_reg13[(byte_index*8)+:8] <= S_AXI_WDATA[(byte_index*8)+:8];
-          end
-          4'hE:
-          for (
-              byte_index = 0;
-              byte_index <= (C_S_AXI_DATA_WIDTH / 8) - 1;
-              byte_index = byte_index + 1
-          )
-          if (S_AXI_WSTRB[byte_index] == 1) begin
-            // Respective byte enables are asserted as per write strobes
-            // Slave register 14
-            slv_reg14[(byte_index*8)+:8] <= S_AXI_WDATA[(byte_index*8)+:8];
-          end
-          4'hF:
-          for (
-              byte_index = 0;
-              byte_index <= (C_S_AXI_DATA_WIDTH / 8) - 1;
-              byte_index = byte_index + 1
-          )
-          if (S_AXI_WSTRB[byte_index] == 1) begin
-            // Respective byte enables are asserted as per write strobes
-            // Slave register 15
-            slv_reg15[(byte_index*8)+:8] <= S_AXI_WDATA[(byte_index*8)+:8];
-          end
           default: begin
             slv_reg0  <= slv_reg0;
             slv_reg1  <= slv_reg1;
@@ -349,10 +301,6 @@ module iq_demodulator_v1_0_S00_AXI #(
             slv_reg4  <= slv_reg4;
             slv_reg5  <= slv_reg5;
             slv_reg6  <= slv_reg6;
-            slv_reg12 <= slv_reg12;
-            slv_reg13 <= slv_reg13;
-            slv_reg14 <= slv_reg14;
-            slv_reg15 <= slv_reg15;
           end
         endcase
       end
@@ -491,7 +439,8 @@ module iq_demodulator_v1_0_S00_AXI #(
   wire [15:0] adc_data_wire;
   wire [16*NUM_DEMOD_CHANNELS-1:0] phases;
   wire [31:0] adc_sample_count;
-
+  wire [159:0] debug;
+    
   always @(posedge S_AXI_ACLK) begin
     if (S_AXI_ARESETN == 1'b0) begin
       slv_reg7  <= 0;
@@ -499,11 +448,20 @@ module iq_demodulator_v1_0_S00_AXI #(
       slv_reg9  <= 0;
       slv_reg10 <= 0;
       slv_reg11 <= 0;
+      slv_reg12 <= 0;
+      slv_reg13 <= 0;
+      slv_reg14 <= 0;
+      slv_reg15 <= 0;
     end else begin
       slv_reg7  <= adc_sample_count;
       slv_reg8  <= {15'b0, adc_data_wire};
       slv_reg9  <= phases[31:0];
       slv_reg10 <= {15'b0, phases[47:32]};
+      slv_reg11 <= debug[31:0];
+      slv_reg12 <= debug[63:32];
+      slv_reg13 <= debug[95:64];
+      slv_reg14 <= debug[127:96];
+      slv_reg15 <= debug[159:128];
     end
   end
 
@@ -515,7 +473,8 @@ module iq_demodulator_v1_0_S00_AXI #(
       .rst(~S_AXI_ARESETN),
       .adc_data_reg(adc_data_wire),
       .adc_sample_count(adc_sample_count),
-      .phases(phases)
+      .phases(phases),
+      .debug(debug)
   );
 
   // User logic ends

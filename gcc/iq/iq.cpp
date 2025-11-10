@@ -19,7 +19,7 @@
 int main(int argc, char *argv[]) {
     int fd;
     void *map_base;
-    volatile unsigned int *xadc_reg;
+    unsigned int reg;
 
     // Default values
     unsigned nmax = 10;
@@ -27,20 +27,22 @@ int main(int argc, char *argv[]) {
     int showscaled = 0;   // Show scaled values if requested
     int quiet = 0;        // Do not display data if set
     unsigned ms = 5;
-    std::vector<unsigned> channels_to_read = {0,1,2,3}; // default: all channels
-
+    std::vector<unsigned> channels_to_read = {0,1,2,3,4, 5, 6, 7, 8}; // default: all channels
+    const double scale[] = {1/65536.0, 1, 360.0/65536, 360.0/65536, 360.0/65536, 
+		                    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff};
+    const unsigned bipolar[] = {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+ 
     // Channel names and offsets
-    const char* channel_names[] = {"VP/VN", "NSAMP", "PHASE01", "PHASE2"};
-    const unsigned channel_offsets[] = {8*4, 7*4, 9*4, 10*4};
+    const char* channel_names[] = {"VP/VN", "NSAMP", "PHASE0", "PHASE1", "PHASE2", 
+		                           "mixerI", "mixerQ", "avgI", "avgQ", "LO_I", "LO_Q"};
+    const unsigned channel_offsets[] = {8*4, 7*4, 9*4, 9*4 + 2, 10*4, 11*4, 12*4, 13*4, 14*4, 15*4, 15*4+2};
+	const unsigned width[] = {2, 4, 2, 2, 2, 4, 4, 4, 4, 2, 2};
 
     // Command line options
     int opt;
     std::string csv_filename;
     std::ofstream csvfile;
     int write_csv = 0;
-
-    // Buffer for data: each entry is (time_us, vector of raw values)
-    std::vector<std::pair<int, std::vector<unsigned>>> data_buffer;
 
     while ((opt = getopt(argc, argv, "n:m:rc:shf:q")) != -1) {
         switch (opt) {
@@ -120,8 +122,6 @@ int main(int argc, char *argv[]) {
 
     unsigned n = 0;
 
-    const float scale[8] = {1/4096.0/4.0, 1, 1, 1, 1, 1, 3, 1}; // see UG480, p. 33
-    const unsigned bipolar[8] = {1,     0,        0,       0,       0,        0,    0, 0};
     const unsigned offset = 0x00;
     int sleepval = ms * 1000;
     long us0 = 0;
@@ -130,8 +130,9 @@ int main(int argc, char *argv[]) {
     struct timeval stop, start;
     gettimeofday(&start, NULL);
     
-    unsigned nsamp0;
-    std::vector<unsigned> raw_values(channels_to_read.size());
+    unsigned nsamp0, nsamp;
+    unsigned nch = channel_offsets.size();
+    
     while (n < nmax) {
         if(n % nmax == 0) {
             printf("  offset address:  ");
@@ -140,18 +141,25 @@ int main(int argc, char *argv[]) {
             }
             printf("\n   Channel names:");
             for(auto ch : channels_to_read) {
-                printf(" %8s", channel_names[ch]);
+                printf(width[ch] == 4 ? " %10s" : " %8s", channel_names[ch]);
             }
             printf("\n");
         }
 
         gettimeofday(&stop, NULL);
         us = (stop.tv_sec - start.tv_sec) * 1000000 + stop.tv_usec - start.tv_usec;
-
+		std::vector<unsigned> raw_values(channels_to_read.size());
         for (auto ch : channels_to_read) {
-            xadc_reg = (volatile unsigned int *)((char *)map_base + offset + channel_offsets[ch]);
-            unsigned int raw = *xadc_reg;
-            raw_values[ch] = raw;
+			if(channel_offsets[ch] % 4 == 0)
+				reg = *(volatile unsigned int *)((char *)map_base + offset + (channel_offsets[ch] & 0xfffc));
+			else
+				reg = reg >> 16;
+				
+            unsigned int raw = reg;
+            if(width[ch] == 4)
+				raw_values[ch] = raw;
+			else
+				raw_values[ch] = raw & 0xffff;
         }
         data_buffer.emplace_back(us, raw_values);
         
@@ -159,29 +167,35 @@ int main(int argc, char *argv[]) {
 			us0 = us;
 			nsamp0 = raw_values[1];
 		}
+		nsamp = raw_values[1];
 		
         if (!quiet && showraw) {
             printf("   RAW %6ld us:", us);
             for (size_t i = 0; i < raw_values.size(); ++i) {
-                printf("   0x%04X", raw_values[i]);
+                printf(width[channels_to_read[i]] == 4 ? " 0x%08X" : "   0x%04X", raw_values[i]);
             }
             printf("\n");
         }
         if (!quiet && showscaled) {
             printf("Scaled %6ld us:", us);
             for (size_t i = 0; i < raw_values.size(); ++i) {
-				float val = raw_values[i];
-				if(i==0) {
-					long x = raw_values[i];
-					if (bipolar[channels_to_read[i]] && x >= 0x8000)
-						x = x - 0xffff - 1;
+				long x = raw_values[i];
+				int ch = channels_to_read[i];
+				if (bipolar[ch]) {
+					if (width[ch] == 2 && x & 0x8000)
+						x = (~x + 1) & 0xffff;
 						
-					val = x * scale[channels_to_read[i]];
+					if (width[ch] == 4 && x & 0x80000000)
+						x =  ~x + 1;
 				}
+				
+				float val = x * scale[channels_to_read[i]];
                 if (channels_to_read[i] == 0)
                     printf(" %8.4f", val);
+                else if (channels_to_read[i] == 1)
+                    printf(" %8.0f", val - nsamp0);
                 else
-                    printf(" %8.0f", val);
+					printf(" %8.0f", val);
             }
             printf("\n");
         }
@@ -194,7 +208,7 @@ int main(int argc, char *argv[]) {
     
     float dt = us-us0;
     if(dt>0)
-		printf("sample rate: %7.3f kHz\n", 1000.0*(raw_values[1]-nsamp0)/dt);
+		printf("sample rate: %7.3f kHz\n", 1000.0*(nsamp-nsamp0)/dt);
 
     if (write_csv) {
         // Write CSV header already done above
@@ -203,18 +217,18 @@ int main(int argc, char *argv[]) {
         for (const auto& entry : data_buffer) {
             csvfile << entry.first;
             for (size_t i = 0; i < entry.second.size(); ++i) {
-                unsigned val = entry.second[i];
+                long x = entry.second[i];
                 unsigned ch = channels_to_read[i];
                 // If the channel is bipolar, convert to signed 12-bit integer
-                int sval;
                 if (bipolar[ch]) {
-                    sval = ((int)(val >> 4));
-                    if (sval & 0x800)
-                        sval -= 0x1000;
-                } else {
-                    sval = val;
-                }
-                csvfile << "," << sval;
+					if (width[ch] == 2 && x & 0x8000)
+						x -= 0x10000;
+						
+					if (width[ch] == 4 && x & 0x80000000)
+						x -= 0x100000000;
+				}
+                csvfile << "," << x;
+                printf("%ld ", x);
             }
             csvfile << std::endl;
         }

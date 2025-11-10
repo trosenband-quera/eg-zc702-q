@@ -11,7 +11,8 @@ module iq_demodulator #(
     input  wire                         rst,
     output reg  [                 15:0] adc_data_reg,
     output reg  [                 31:0] adc_sample_count,
-    output wire [(16*NUM_CHANNELS-1):0] phases
+    output wire [(16*NUM_CHANNELS-1):0] phases,
+    output wire [                159:0] debug
 );
 
   // DDS parameters
@@ -49,6 +50,10 @@ module iq_demodulator #(
   wire signed [15:0] in_signal = adc_data_reg;
   wire signed [31:0] mixerI[NUM_CHANNELS-1:0];
   wire signed [31:0] mixerQ[NUM_CHANNELS-1:0];
+  
+  assign debug[31:0] = mixerI[0];
+  assign debug[63:32] = mixerQ[0];
+  
   generate
     for (ch = 0; ch < NUM_CHANNELS; ch = ch + 1) begin : gen_mixers
       assign mixerI[ch] = in_signal * sin_lut[addr_cos[ch]];
@@ -60,6 +65,11 @@ module iq_demodulator #(
   reg signed [31:0] i_avg[NUM_CHANNELS-1:0];
   reg signed [31:0] q_avg[NUM_CHANNELS-1:0];
 
+  assign debug[95:64] = i_avg[0];
+  assign debug[127:96] = q_avg[0];
+  assign debug[143:128] = sin_lut[addr_cos[0]];
+  assign debug[159:144] = sin_lut[addr_sin[0]];
+  
   // ADC data sampling and counting, on xadc_ready rising edge
   wire xadc_ready;
   reg prev_xadc_ready;
