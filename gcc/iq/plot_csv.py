@@ -42,12 +42,15 @@ def plot_csv(filename, hist_raw=False):
         return
 
     for i in range(1, arr.shape[1]):
-        plt.plot(time, arr[:, i], label=header[i])
+        lw = 1
+        if i==1 :
+            lw = 3
+        plt.plot(time, arr[:, i], label=header[i], linewidth=lw)
         plt.scatter(time, arr[:, i], s=12)
 
     plt.xlabel("time (ms)")
     plt.ylabel("Voltage")
-    plt.title("XADC CSV Data")
+    plt.title("IQ demodulator CSV Data")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
@@ -55,7 +58,7 @@ def plot_csv(filename, hist_raw=False):
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Plot XADC data from CSV file.")
+    parser = argparse.ArgumentParser(description="Plot IQ demodulator data from CSV file.")
     parser.add_argument("csv_file", help="CSV file to plot")
     parser.add_argument("--hist-raw", action="store_true", help="Show histogram of RAW_ columns")
     args = parser.parse_args()

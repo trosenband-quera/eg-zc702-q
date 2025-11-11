@@ -16,7 +16,7 @@
 #include <tuple>
 #include <string>
 #include <sstream>
-
+#include <cstring>
 int main(int argc, char *argv[]) {
     int fd;
     void *map_base;
@@ -28,9 +28,11 @@ int main(int argc, char *argv[]) {
     int showscaled = 0;   // Show scaled values if requested
     int quiet = 0;        // Do not display data if set
     unsigned ms = 5;
-    std::vector<unsigned> channels_to_read = {0,1,2,3,4, 5, 6, 7, 8}; // default: all channels
-    const double scale[] = {1/65536.0, 1, 360.0/65536, 360.0/65536, 360.0/65536, 
-		                    0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff};
+    std::vector<unsigned> channels_to_read = {0,9}; // default: all channels
+    double scale[] = {0, 1, 360.0/65536, 360.0/65536, 360.0/65536, 
+						0, 0, 
+						0, 0, 
+						0, 0};
     const unsigned bipolar[] = {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1};
  
     // Channel names and offsets
@@ -67,7 +69,7 @@ int main(int argc, char *argv[]) {
                 std::string item;
                 while (std::getline(ss, item, ',')) {
                     unsigned ch = std::strtoul(item.c_str(), nullptr, 0);
-                    if (ch < 7) channels_to_read.push_back(ch);
+                    if (ch < 11) channels_to_read.push_back(ch);
                 }
                 break;
             }
@@ -115,6 +117,18 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+	unsigned num_channels = channels_to_read.size();
+	
+	// get scale from width if 0
+	for (size_t i = 0; i < num_channels; ++i) {
+		int ch = channels_to_read[i];
+		if (0 == scale[ch]) {
+			scale[ch] = 1.0;
+			for(unsigned j=0; j<width[ch]; j++)
+				scale[ch] /= 256.0;
+		}
+	}
+	
     unsigned n = 0;
 
     const unsigned offset = 0x00;
@@ -130,14 +144,14 @@ int main(int argc, char *argv[]) {
     
     // Replace vector-based buffer with a one-dimensional dynamically allocated array
     unsigned max_samples = nmax;
-    unsigned num_channels = channels_to_read.size();
+    
     // Allocate a 1D array: data_buffer[sample * (num_channels + 1) + channel]
     unsigned *data_buffer = new unsigned[max_samples * (num_channels + 1)];
     while (n < nmax) {
         if(n % nmax == 0) {
             printf("  offset address:  ");
             for(auto ch : channels_to_read) {
-                printf(" 0x%06X", offset + channel_offsets[ch]);
+                printf(width[ch] == 4 ? "     0x%04X" : "   0x%04X", offset + channel_offsets[ch]);
             }
             printf("\n   Channel names:");
             for(auto ch : channels_to_read) {
@@ -193,8 +207,8 @@ int main(int argc, char *argv[]) {
 						x =  ~x + 1;
 				}
 				
-				float val = x * scale[channels_to_read[i]];
-                if (channels_to_read[i] == 0)
+				float val = x * scale[ch];
+                if (ch == 0)
                     printf(" %8.4f", val);
                 else if (channels_to_read[i] == 1)
                     printf(" %8.0f", val - nsamp0);
@@ -235,7 +249,7 @@ int main(int argc, char *argv[]) {
                     if (width[ch] == 4 && x & 0x80000000)
                         x -= 0x100000000;
                 }
-                csvfile << "," << x / (showscaled ? scale[ch] : 1);
+                csvfile << "," << x * (showscaled ? scale[ch] : 1);
             }
             csvfile << std::endl;
         }

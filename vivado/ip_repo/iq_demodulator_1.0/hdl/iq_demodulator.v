@@ -5,7 +5,7 @@ module iq_demodulator #(
     // ADC sample rate in Hz, 25/26=0.9615384 MHz
     parameter integer SAMPLE_RATE_HZ = 9615384,
     // LO frequency in Hz, one entry per channel
-    parameter FREQ_HZ = {32'd100000, 32'd110000, 32'd120000}
+    parameter FREQ_HZ = {32'd100, 32'd120000, 32'd130000}
 ) (
     input  wire                         clk,               // 100 MHz system clock
     input  wire                         rst,
