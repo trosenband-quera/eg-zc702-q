@@ -1,6 +1,6 @@
 module iq_demodulator #(
     parameter integer NUM_CHANNELS = 3,
-    parameter integer PHASE_WIDTH = 32,
+    parameter integer PHASE_WIDTH = 16,
     parameter integer LUT_SIZE = 256,
     // ADC sample rate in Hz, 25/26=0.9615384 MHz
     parameter integer SAMPLE_RATE_HZ = 9615384,
@@ -9,6 +9,7 @@ module iq_demodulator #(
 ) (
     input  wire                         clk,               // 100 MHz system clock
     input  wire                         rst,
+    input  wire [(16*NUM_CHANNELS-1):0] lo_dds_phase_inc,
     output reg  [                 15:0] adc_data_reg,
     output reg  [                 31:0] adc_sample_count,
     output wire [(16*NUM_CHANNELS-1):0] phases,
@@ -16,7 +17,7 @@ module iq_demodulator #(
 );
 
   // DDS parameters
-  localparam integer COS_OFFSET = (LUT_SIZE / 4) << 24;
+  localparam integer COS_OFFSET = (LUT_SIZE / 4) << 8;
 
   // DDS phase accumulators (separate for sin and cos)
   reg [PHASE_WIDTH-1:0] dds_phase_acc_sin[NUM_CHANNELS-1:0];
@@ -101,12 +102,12 @@ module iq_demodulator #(
           q_avg[ch] <= 0;
         end else begin
           if (xadc_ready == 1 && prev_xadc_ready == 0) begin
-            dds_phase_acc_sin[ch] <= dds_phase_acc_sin[ch] +
-                                     (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
-                                       SAMPLE_RATE_HZ) << 18);
-            dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] +
-                                     (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
-                                       SAMPLE_RATE_HZ) << 18);
+            dds_phase_acc_sin[ch] <= dds_phase_acc_sin[ch] + lo_dds_phase_inc[((ch+1)*16-1):(ch*16)];
+//                                     (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
+//                                       SAMPLE_RATE_HZ) << 18);
+            dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] + lo_dds_phase_inc[((ch+1)*16-1):(ch*16)];
+//                                     (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
+//                                       SAMPLE_RATE_HZ) << 18);
             i_avg[ch] <= 63*(i_avg[ch] >> 6) + (mixerI[ch] >> 6);
             q_avg[ch] <= 63*(q_avg[ch] >> 6) + (mixerQ[ch] >> 6);
           end

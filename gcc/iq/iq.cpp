@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
     const unsigned bipolar[] = {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1};
  
     // Channel names and offsets
-    const char* channel_names[] = {"VP/VN", "NSAMP", "PHASE0", "PHASE1", "PHASE2", 
+    const char* channel_names[] = {"VP-VN", "NSAMP", "PHASE0", "PHASE1", "PHASE2", 
 		                           "mixerI", "mixerQ", "avgI", "avgQ", "LO_I", "LO_Q"};
     const unsigned channel_offsets[] = {8*4, 7*4, 9*4, 9*4 + 2, 10*4, 11*4, 12*4, 13*4, 14*4, 15*4, 15*4+2};
 	const unsigned width[] = {2, 4, 2, 2, 2, 4, 4, 4, 4, 2, 2};
@@ -117,6 +117,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+	
 	unsigned num_channels = channels_to_read.size();
 	
 	// get scale from width if 0
@@ -140,6 +141,19 @@ int main(int argc, char *argv[]) {
     clock_gettime(CLOCK_MONOTONIC, &start);
     printf("Start time: %ld.%09ld\n", start.tv_sec, start.tv_nsec);
 
+// (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
+//                                       SAMPLE_RATE_HZ) << 18);
+	const double SAMPLE_RATE_HZ = 1e6 * 25 / 26.0;
+	const double freq_Hz = 100.0;
+	double phase_inc_d = 65536.0 * freq_Hz / SAMPLE_RATE_HZ;
+	unsigned phase_inc = 0.5 + phase_inc_d;
+	double freq_Hz_true = phase_inc * SAMPLE_RATE_HZ / 65536.0;
+	
+	printf("target = %.3f Hz, true = %.3f Hz, phase delta = %.3f\n", freq_Hz, freq_Hz_true, phase_inc_d);
+	
+	// set LO freq, reg2
+	*(volatile unsigned int *)((char *)map_base + offset + 2*4) = phase_inc;
+	
     unsigned nsamp0, nsamp;
     
     // Replace vector-based buffer with a one-dimensional dynamically allocated array
