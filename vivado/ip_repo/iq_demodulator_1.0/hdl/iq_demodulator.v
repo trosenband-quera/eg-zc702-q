@@ -15,7 +15,8 @@ module iq_demodulator #(
     output wire [(16*NUM_CHANNELS-1):0] phases,
     output wire [                159:0] debug
 );
-
+  localparam integer IQ_AVG_SHIFT = 16;
+  
   // DDS parameters
   localparam integer COS_OFFSET = (LUT_SIZE / 4) << 8;
 
@@ -49,18 +50,11 @@ module iq_demodulator #(
 
   // Mixers (use same LUT for sin and cos)
   wire signed [15:0] in_signal = adc_data_reg;
-  wire signed [31:0] mixerI[NUM_CHANNELS-1:0];
-  wire signed [31:0] mixerQ[NUM_CHANNELS-1:0];
+  reg signed [31:0] mixerI[NUM_CHANNELS-1:0];
+  reg signed [31:0] mixerQ[NUM_CHANNELS-1:0];
   
   assign debug[31:0] = mixerI[0];
   assign debug[63:32] = mixerQ[0];
-  
-  generate
-    for (ch = 0; ch < NUM_CHANNELS; ch = ch + 1) begin : gen_mixers
-      assign mixerI[ch] = in_signal * sin_lut[addr_cos[ch]];
-      assign mixerQ[ch] = in_signal * sin_lut[addr_sin[ch]];
-    end
-  endgenerate
 
   // Simple moving average filter (low-pass)
   reg signed [31:0] i_avg[NUM_CHANNELS-1:0];
@@ -108,8 +102,10 @@ module iq_demodulator #(
             dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] + lo_dds_phase_inc[((ch+1)*16-1):(ch*16)];
 //                                     (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
 //                                       SAMPLE_RATE_HZ) << 18);
-            i_avg[ch] <= 63*(i_avg[ch] >> 6) + (mixerI[ch] >> 6);
-            q_avg[ch] <= 63*(q_avg[ch] >> 6) + (mixerQ[ch] >> 6);
+            i_avg[ch] <= i_avg[ch] - (i_avg[ch] >>> IQ_AVG_SHIFT) + (mixerI[ch] >>> IQ_AVG_SHIFT);
+            q_avg[ch] <= q_avg[ch] - (q_avg[ch] >>> IQ_AVG_SHIFT) + (mixerQ[ch] >>> IQ_AVG_SHIFT);
+            mixerI[ch] <= in_signal * sin_lut[addr_cos[ch]];
+            mixerQ[ch] <= in_signal * sin_lut[addr_sin[ch]];
           end
         end
       end

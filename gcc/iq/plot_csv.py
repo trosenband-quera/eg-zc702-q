@@ -51,19 +51,21 @@ def plot_csv(filename, hist_raw=False):
     # Non-mixer channels
     for i in other_indices:
         lw = 1
+        if i == 1:
+            lw = 3
+            
         axs[0].plot(time, arr[:, i], label=header[i], linewidth=lw)
         axs[0].scatter(time, arr[:, i], s=12)
-    axs[0].set_ylabel("Voltage")
     axs[0].set_title("IQ Demodulator Data (Non-Mixer Channels)")
     axs[0].legend()
     axs[0].grid(True)
 
     # Mixer channels
     for i in mixer_indices:
-        axs[1].plot(time, arr[:, i], label=header[i])
-        axs[1].scatter(time, arr[:, i], s=12)
+        y = arr[:, i];     #np.unwrap(arr[:, i], period=1)
+        axs[1].plot(time, y, label=header[i])
+        axs[1].scatter(time, y, s=12)
     axs[1].set_xlabel("time (ms)")
-    axs[1].set_ylabel("Voltage")
     axs[1].set_title("Mixer Channels")
     axs[1].legend()
     axs[1].grid(True)

@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
     int quiet = 0;        // Do not display data if set
     unsigned ms = 5;
     std::vector<unsigned> channels_to_read = {0,9}; // default: all channels
-    double scale[] = {0, 1, 360.0/65536, 360.0/65536, 360.0/65536, 
+    double scale[] = {0, 1, 6.28/65536, 6.28/65536, 6.28/65536.0, 
 						0, 0, 
 						0, 0, 
 						0, 0};
@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
  
     // Channel names and offsets
     const char* channel_names[] = {"VP-VN", "NSAMP", "PHASE0", "PHASE1", "PHASE2", 
-		                           "mixerI", "mixerQ", "avgI", "avgQ", "LO_I", "LO_Q"};
+		                           "mixI", "mixQ", "avgmixI", "avgmixQ", "LO_I", "LO_Q"};
     const unsigned channel_offsets[] = {8*4, 7*4, 9*4, 9*4 + 2, 10*4, 11*4, 12*4, 13*4, 14*4, 15*4, 15*4+2};
 	const unsigned width[] = {2, 4, 2, 2, 2, 4, 4, 4, 4, 2, 2};
 
