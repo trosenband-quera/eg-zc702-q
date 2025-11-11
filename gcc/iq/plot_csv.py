@@ -17,9 +17,13 @@ def plot_csv(filename, hist_raw=False):
     arr = np.array(data, dtype=float)
     time = arr[:, 0] / 1e3  # Convert us to ms for x-axis
     print(f"Plotting data from {filename} with shape {arr.shape}")
+
+    # Identify mixer channels (names containing 'MIX' or 'MIXER')
+    mixer_indices = [i for i, h in enumerate(header) if 'MIX' in h.upper() or 'MIXER' in h.upper()]
+    other_indices = [i for i in range(1, arr.shape[1]) if i not in mixer_indices]
+
     if hist_raw:
-        # for i in range(1):
-        i=1
+        i = 1
         data_i = arr[:, i]
         min_val = int(np.min(data_i))
         max_val = int(np.max(data_i))
@@ -30,7 +34,7 @@ def plot_csv(filename, hist_raw=False):
             bins=bins,
             alpha=0.6,
             label=f"{header[i]} (std={std:.2f})",
-            edgecolor='black'  # Add black lines around bars
+            edgecolor='black'
         )
         plt.xlabel("Raw Value")
         plt.ylabel("Count")
@@ -41,18 +45,29 @@ def plot_csv(filename, hist_raw=False):
         plt.show()
         return
 
-    for i in range(1, arr.shape[1]):
-        lw = 1
-        if i==1 :
-            lw = 3
-        plt.plot(time, arr[:, i], label=header[i], linewidth=lw)
-        plt.scatter(time, arr[:, i], s=12)
+    # Plot in two subplots: non-mixer and mixer channels
+    fig, axs = plt.subplots(2, 1, sharex=True, figsize=(10, 8))
 
-    plt.xlabel("time (ms)")
-    plt.ylabel("Voltage")
-    plt.title("IQ demodulator CSV Data")
-    plt.legend()
-    plt.grid(True)
+    # Non-mixer channels
+    for i in other_indices:
+        lw = 1
+        axs[0].plot(time, arr[:, i], label=header[i], linewidth=lw)
+        axs[0].scatter(time, arr[:, i], s=12)
+    axs[0].set_ylabel("Voltage")
+    axs[0].set_title("IQ Demodulator Data (Non-Mixer Channels)")
+    axs[0].legend()
+    axs[0].grid(True)
+
+    # Mixer channels
+    for i in mixer_indices:
+        axs[1].plot(time, arr[:, i], label=header[i])
+        axs[1].scatter(time, arr[:, i], s=12)
+    axs[1].set_xlabel("time (ms)")
+    axs[1].set_ylabel("Voltage")
+    axs[1].set_title("Mixer Channels")
+    axs[1].legend()
+    axs[1].grid(True)
+
     plt.tight_layout()
     plt.show()
 
