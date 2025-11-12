@@ -6,8 +6,9 @@
 #include <fstream>
 #include <time.h>
 
-#define XADC_BASE_ADDR  0x43C00000  // Replace with your actual base address
-#define XADC_SPAN       0x1000
+#define GPIO_BASE_ADDR  0x41200000
+#define XADC_BASE_ADDR  0x43C00000  
+#define XADC_SPAN       0x10000
 
 #include <sys/time.h>
 #include <getopt.h>
@@ -122,14 +123,15 @@ int main(int argc, char *argv[]) {
 	unsigned num_channels = channels_to_read.size();
 	
 	// get scale from width if 0
-	for (size_t i = 0; i < num_channels; ++i) {
-		int ch = channels_to_read[i];
-		if (0 == scale[ch]) {
-			scale[ch] = 1.0;
-			for(unsigned j=0; j<width[ch]; j++)
-				scale[ch] /= 256.0;
-		}
-	}
+    for (size_t i = 0; i < num_channels; ++i) {
+        int ch = channels_to_read[i];
+        if (0 == scale[ch]) {
+            scale[ch] = 1.0;
+            for(unsigned j=0; j<width[ch]; j++)
+                scale[ch] /= 256.0;
+        }
+        printf("Channel %s (index %d): scale = %g\n", channel_names[ch], ch, scale[ch]);
+    }
 	
     unsigned n = 0;
 
@@ -172,6 +174,7 @@ int main(int argc, char *argv[]) {
             for(auto ch : channels_to_read) {
                 printf(width[ch] == 4 ? " %10s" : " %8s", channel_names[ch]);
             }
+            
             printf("\n");
         }
 
