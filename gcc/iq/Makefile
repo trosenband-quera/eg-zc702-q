@@ -44,10 +44,21 @@ $(SELF): $(DEPS)
 transfer: default
 	scp $(SELF) zc702:~/
 
+# configure FPGA for Xilinx 2025.1 tools
+.PHONY: fpgacfg
+fpgacfg:
+	cp ../../vivado/iq_project/iq-demod-zynq/iq-demod-zynq.runs/impl_1/top_wrapper.bit pl.bit
+	bootgen -w -image bitstream.bif -arch zynq -process_bitstream bin
+	ssh zc702 -C "mkdir -p /lib/firmware"
+	scp pl.bit.bin zc702:/lib/firmware
+	ssh zc702 -C "echo 0 > /sys/class/fpga_manager/fpga0/flags"
+	ssh zc702 -C "echo pl.bit.bin > /sys/class/fpga_manager/fpga0/firmware"
+
+# configure FPGA for Xilinx 2018.2 tools
 .PHONY: xdevcfg
 xdevcfg:
 	cp ../../vivado/iq_project/iq-demod-zynq/iq-demod-zynq.runs/impl_1/top_wrapper.bit pl.bit
-	scp pl.bit zc702:~/
+	scp pl.bit.bin zc702:~/
 	ssh zc702 -C "cat pl.bit > /dev/xdevcfg"
 	
 .PHONY : run
@@ -56,7 +67,7 @@ run: transfer
 
 .PHONY : getdata
 getdata: transfer
-	ssh zc702 -C "./$(SELF) -c 0,5,6,7,8,9,10,2 -q -f 1.csv -n 200 -m 1 -s"
+	ssh zc702 -C "./$(SELF) -c 0,5,6,7,8,9,10,2 -q -f 1.csv -n 1000 -m 1 -s"
 	scp zc702:~/1.csv .
 	python3 plot_csv.py 1.csv
 

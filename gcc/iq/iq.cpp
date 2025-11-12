@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
 // (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
 //                                       SAMPLE_RATE_HZ) << 18);
 	const double SAMPLE_RATE_HZ = 1e6 * 25 / 26.0;
-	const double freq_Hz = 100.0;
+	const double freq_Hz = 100.0e3;
 	double phase_inc_d = 65536.0 * freq_Hz / SAMPLE_RATE_HZ;
 	unsigned phase_inc = 0.5 + phase_inc_d;
 	double freq_Hz_true = phase_inc * SAMPLE_RATE_HZ / 65536.0;
