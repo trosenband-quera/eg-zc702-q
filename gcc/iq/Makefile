@@ -47,7 +47,7 @@ transfer: default
 # configure FPGA for Xilinx 2025.1 tools
 .PHONY: fpgacfg
 fpgacfg:
-	cp ../../vivado/iq_project/iq-demod-zynq/iq-demod-zynq.runs/impl_1/top_wrapper.bit pl.bit
+	cp ../../vivado/iq_project/top.bit pl.bit
 	bootgen -w -image bitstream.bif -arch zynq -process_bitstream bin
 	ssh zc702 -C "mkdir -p /lib/firmware"
 	scp pl.bit.bin zc702:/lib/firmware

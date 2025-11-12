@@ -4,6 +4,10 @@ SELF := $(shell basename $(PWD))
 default:
 	vivado -source recreate.tcl
 
+.PHONY : bit
+bit:
+	vivado -mode batch -source genbitstream.tcl
+	
 .PHONY : clean
 clean:
 	-rm -f *.xpr *.jou
