@@ -17,6 +17,7 @@
 #include <string>
 #include <sstream>
 #include <cstring>
+#include <cmath>
 int main(int argc, char *argv[]) {
     int fd;
     void *map_base;
@@ -29,7 +30,7 @@ int main(int argc, char *argv[]) {
     int quiet = 0;        // Do not display data if set
     unsigned ms = 5;
     std::vector<unsigned> channels_to_read = {0,9}; // default: all channels
-    double scale[] = {0, 1, 6.28/65536, 6.28/65536, 6.28/65536.0, 
+    double scale[] = {0, 1, 2*M_PI/65536, 2*M_PI/65536, 2*M_PI/65536, 
 						0, 0, 
 						0, 0, 
 						0, 0};

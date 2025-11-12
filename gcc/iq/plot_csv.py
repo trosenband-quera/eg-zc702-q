@@ -22,6 +22,14 @@ def plot_csv(filename, hist_raw=False):
     mixer_indices = [i for i, h in enumerate(header) if 'MIX' in h.upper() or 'MIXER' in h.upper()]
     other_indices = [i for i in range(1, arr.shape[1]) if i not in mixer_indices]
 
+    # Find avgmixI and avgmixQ indices
+    try:
+        idx_I = header.index("avgmixI")
+        idx_Q = header.index("avgmixQ")
+        has_avgmix = True
+    except ValueError:
+        has_avgmix = False
+
     if hist_raw:
         i = 1
         data_i = arr[:, i]
@@ -45,24 +53,26 @@ def plot_csv(filename, hist_raw=False):
         plt.show()
         return
 
-    # Plot in two subplots: non-mixer and mixer channels
+    # Plot in subplots: non-mixer, mixer
     fig, axs = plt.subplots(2, 1, sharex=True, figsize=(10, 8))
 
-    # Non-mixer channels
+    # Non-mixer channels + atan2(avgmixQ, avgmixI) if present
     for i in other_indices:
         lw = 1
         if i == 1:
             lw = 3
-            
         axs[0].plot(time, arr[:, i], label=header[i], linewidth=lw)
         axs[0].scatter(time, arr[:, i], s=12)
-    axs[0].set_title("IQ Demodulator Data (Non-Mixer Channels)")
+    if has_avgmix:
+        phase = np.arctan2(arr[:, idx_Q], arr[:, idx_I])
+        axs[0].plot(time, phase, label="atan2(avgmixQ, avgmixI)", color='purple', linewidth=2)
+    axs[0].set_title("IQ Demodulator Data (Non-Mixer Channels & Phase)")
     axs[0].legend()
     axs[0].grid(True)
 
     # Mixer channels
     for i in mixer_indices:
-        y = arr[:, i];     #np.unwrap(arr[:, i], period=1)
+        y = arr[:, i]
         axs[1].plot(time, y, label=header[i])
         axs[1].scatter(time, y, s=12)
     axs[1].set_xlabel("time (ms)")
