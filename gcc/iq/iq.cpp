@@ -19,6 +19,9 @@
 #include <sstream>
 #include <cstring>
 #include <cmath>
+
+using namespace std;
+
 int main(int argc, char *argv[]) {
     int fd;
     void *map_base;
@@ -147,15 +150,27 @@ int main(int argc, char *argv[]) {
 // (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
 //                                       SAMPLE_RATE_HZ) << 18);
 	const double SAMPLE_RATE_HZ = 1e6 * 25 / 26.0;
-	const double freq_Hz = 100.0e3;
-	double phase_inc_d = 65536.0 * freq_Hz / SAMPLE_RATE_HZ;
-	unsigned phase_inc = 0.5 + phase_inc_d;
-	double freq_Hz_true = phase_inc * SAMPLE_RATE_HZ / 65536.0;
-	
-	printf("target = %.3f Hz, true = %.3f Hz, phase delta = %.3f\n", freq_Hz, freq_Hz_true, phase_inc_d);
-	
-	// set LO freq, reg2
-	*(volatile unsigned int *)((char *)map_base + offset + 2*4) = phase_inc;
+
+    
+	const vector<double> freq_Hz = {100.0e3, 110.0e3};
+    vector<unsigned> phase_inc_values(1+freq_Hz.size()/2, 0);
+    for(unsigned i=0; i<freq_Hz.size(); i++) {
+        double phase_inc_d = 65536.0 * freq_Hz[i] / SAMPLE_RATE_HZ;
+        unsigned phase_inc = 0.5 + phase_inc_d;
+        double freq_Hz_true = phase_inc * SAMPLE_RATE_HZ / 65536.0;
+        
+        printf("LO %d, target = %.3f Hz, true = %.3f Hz, phase delta = %.3f\n", i, freq_Hz[i], freq_Hz_true, phase_inc_d);
+        phase_inc_values[i/2] |= i %  2 ? phase_inc : (phase_inc << 16);
+    }
+    
+    //phase0 is reference
+    *(volatile unsigned int *)((char *)map_base + offset + 0*4) = 0xffffffff; // phase0_is_ref
+    printf("%s\n", (*(volatile unsigned int *)((char *)map_base + offset + 0*4) & 1) ? "phase0 is reference" : "phase0 is not reference");
+    
+    // set LO phase inc registers
+    for(unsigned i=0; i<phase_inc_values.size(); i++) {
+        *(volatile unsigned int *)((char *)map_base + offset + (2+i)*4) = phase_inc_values[i];
+    }
 	
     unsigned nsamp0, nsamp;
     
