@@ -1,0 +1,4 @@
+all:
+{
+        pl.bit /* Bitstream file name */
+}

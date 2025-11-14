@@ -1,0 +1,44 @@
+#!/bin/bash
+
+set -e
+
+NAME=ncurses
+VER=6.5
+
+TOBUILD=$NAME-$VER
+
+echo "Build $TOBUILD"
+echo "See: http://www.ailis.de/~k/archives/19-arm-cross-compiling-howto.html"
+
+cd ../src
+
+if ! [ -d $TOBUILD ]; then
+	TAR=$TOBUILD.tar.gz
+   if [ ! -f $TAR ]; then
+     wget "https://ftp.gnu.org/pub/gnu/ncurses/$TAR"
+   fi
+ tar -xvzf $TAR
+fi
+
+cd $TOBUILD
+
+
+DEST=/zc702/$NAME
+
+rm -rf $DEST
+mkdir -p $DEST
+
+./configure --build=x86_64-pc-linux-gnu --host=arm-linux-gnueabihf --prefix=$DEST
+
+make clean
+make -j8 all
+
+exit
+
+make install
+
+rm -rf $DEST/share
+scp -r $DEST root@zynq:/usr/local/zynq/
+ssh root@zynq 'ln -sf /usr/local/zynq/zlib/lib/libz.so.1.2.8 /usr/local/lib/libz.so.1.2.8'
+ssh root@zynq 'ln -sf /usr/local/zynq/zlib/lib/libz.so.1.2.8 /usr/local/lib/libz.so.1'
+ssh root@zynq 'ln -sf /usr/local/zynq/zlib/lib/libz.so.1.2.8 /usr/local/lib/libz.so'

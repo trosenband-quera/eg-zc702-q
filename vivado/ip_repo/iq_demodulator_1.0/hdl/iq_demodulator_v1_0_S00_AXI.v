@@ -206,13 +206,13 @@ module iq_demodulator_v1_0_S00_AXI #(
 
   always @(posedge S_AXI_ACLK) begin
     if (S_AXI_ARESETN == 1'b0) begin
-      slv_reg0  <= 0;
-      slv_reg1  <= 0;
-      slv_reg2  <= 0;
-      slv_reg3  <= 0;
-      slv_reg4  <= 0;
-      slv_reg5  <= 0;
-      slv_reg6  <= 0;
+      slv_reg0 <= 0;
+      slv_reg1 <= 0;
+      slv_reg2 <= 0;
+      slv_reg3 <= 0;
+      slv_reg4 <= 0;
+      slv_reg5 <= 0;
+      slv_reg6 <= 0;
     end else begin
       if (slv_reg_wren) begin
         case (axi_awaddr[ADDR_LSB+OPT_MEM_ADDR_BITS:ADDR_LSB])
@@ -294,13 +294,13 @@ module iq_demodulator_v1_0_S00_AXI #(
             slv_reg6[(byte_index*8)+:8] <= S_AXI_WDATA[(byte_index*8)+:8];
           end
           default: begin
-            slv_reg0  <= slv_reg0;
-            slv_reg1  <= slv_reg1;
-            slv_reg2  <= slv_reg2;
-            slv_reg3  <= slv_reg3;
-            slv_reg4  <= slv_reg4;
-            slv_reg5  <= slv_reg5;
-            slv_reg6  <= slv_reg6;
+            slv_reg0 <= slv_reg0;
+            slv_reg1 <= slv_reg1;
+            slv_reg2 <= slv_reg2;
+            slv_reg3 <= slv_reg3;
+            slv_reg4 <= slv_reg4;
+            slv_reg5 <= slv_reg5;
+            slv_reg6 <= slv_reg6;
           end
         endcase
       end
@@ -438,12 +438,12 @@ module iq_demodulator_v1_0_S00_AXI #(
   wire [(16*NUM_DEMOD_CHANNELS-1):0] lo_dds_phase_inc;
   assign lo_dds_phase_inc[31:0]  = slv_reg2;
   assign lo_dds_phase_inc[47:32] = slv_reg3[15:0];
-   
+
   wire [15:0] adc_data_wire;
   wire [16*NUM_DEMOD_CHANNELS-1:0] phases;
   wire [31:0] adc_sample_count;
   wire [159:0] debug;
-    
+
   always @(posedge S_AXI_ACLK) begin
     if (S_AXI_ARESETN == 1'b0) begin
       slv_reg7  <= 0;

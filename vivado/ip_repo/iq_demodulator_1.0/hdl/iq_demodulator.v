@@ -1,11 +1,7 @@
 module iq_demodulator #(
     parameter integer NUM_CHANNELS = 3,
     parameter integer PHASE_WIDTH = 16,
-    parameter integer LUT_SIZE = 256,
-    // ADC sample rate in Hz, 25/26=0.9615384 MHz
-    parameter integer SAMPLE_RATE_HZ = 9615384,
-    // LO frequency in Hz, one entry per channel
-    parameter FREQ_HZ = {32'd100, 32'd120000, 32'd130000}
+    parameter integer LUT_SIZE = 256
 ) (
     input  wire                         clk,               // 100 MHz system clock
     input  wire                         rst,
@@ -16,7 +12,7 @@ module iq_demodulator #(
     output wire [                159:0] debug
 );
   localparam integer IQ_AVG_SHIFT = 16;
-  
+
   // DDS parameters
   localparam integer COS_OFFSET = (LUT_SIZE / 4) << 8;
 
@@ -52,8 +48,8 @@ module iq_demodulator #(
   wire signed [15:0] in_signal = adc_data_reg;
   reg signed [31:0] mixerI[NUM_CHANNELS-1:0];
   reg signed [31:0] mixerQ[NUM_CHANNELS-1:0];
-  
-  assign debug[31:0] = mixerI[0];
+
+  assign debug[31:0]  = mixerI[0];
   assign debug[63:32] = mixerQ[0];
 
   // Simple moving average filter (low-pass)
@@ -64,7 +60,7 @@ module iq_demodulator #(
   assign debug[127:96] = q_avg[0];
   assign debug[143:128] = sin_lut[addr_cos[0]];
   assign debug[159:144] = sin_lut[addr_sin[0]];
-  
+
   // ADC data sampling and counting, on xadc_ready rising edge
   wire xadc_ready;
   reg prev_xadc_ready;
@@ -96,12 +92,10 @@ module iq_demodulator #(
           q_avg[ch] <= 0;
         end else begin
           if (xadc_ready == 1 && prev_xadc_ready == 0) begin
-            dds_phase_acc_sin[ch] <= dds_phase_acc_sin[ch] + lo_dds_phase_inc[((ch+1)*16-1):(ch*16)];
-//                                     (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
-//                                       SAMPLE_RATE_HZ) << 18);
-            dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] + lo_dds_phase_inc[((ch+1)*16-1):(ch*16)];
-//                                     (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
-//                                       SAMPLE_RATE_HZ) << 18);
+            dds_phase_acc_sin[ch] <= dds_phase_acc_sin[ch] +
+                                     lo_dds_phase_inc[((ch+1)*16-1):(ch*16)];
+            dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] +
+                                     lo_dds_phase_inc[((ch+1)*16-1):(ch*16)];
             i_avg[ch] <= i_avg[ch] - (i_avg[ch] >>> IQ_AVG_SHIFT) + (mixerI[ch] >>> IQ_AVG_SHIFT);
             q_avg[ch] <= q_avg[ch] - (q_avg[ch] >>> IQ_AVG_SHIFT) + (mixerQ[ch] >>> IQ_AVG_SHIFT);
             mixerI[ch] <= in_signal * sin_lut[addr_cos[ch]];
