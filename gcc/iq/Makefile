@@ -21,13 +21,20 @@ CXXFLAGS := -Wall -Wextra -Wno-psabi  #-g -O1 -gdwarf-4
 # executable must be statically linked.
 # Otherwise, when running ./foo you get an error like:
 #	-sh: ./foo: No such file or directory
-LDFLAGS := -static -lm -lrt
+LDFLAGS := -static -lm
 
 # Link to libraries.
 #LDLIBS := -lm
 
 # First target is the default so name it as such.
 default: $(SELF)
+
+serial_comm: serial_comm.cpp
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) serial_comm.cpp -o serial_comm
+
+serial: serial_comm
+	scp serial_comm zc702:~/
+	ssh zc702 -C "chmod u+x ./serial_comm && ./serial_comm /dev/ttyUSB0 'q'"
 
 $(SELF): $(DEPS)
 
@@ -80,7 +87,7 @@ gethist:
 .PHONY : clean
 clean:
 	-rm -f *.o *.bit *.csv
-	-rm -f $(SELF)
+	-rm -f $(SELF) serial_comm
 
 # List all Make targets.
 .PHONY : list
