@@ -42,7 +42,8 @@ int main(int argc, char *argv[]) {
     tty.c_cc[VMIN]  = 0;            // read doesn't block
     tty.c_cc[VTIME] = 5;            // 0.5 seconds read timeout
 
-    tty.c_iflag &= ~(IXON | IXOFF | IXANY); // shut off xon/xoff ctrl
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY | ICRNL); // shut off xon/xoff ctrl, no CR -> LF translation
+    tty.c_iflag |= IGNCR; // ignore CR
     tty.c_cflag |= (CLOCAL | CREAD);        // ignore modem controls, enable reading
     tty.c_cflag &= ~(PARENB | PARODD);      // shut off parity
     tty.c_cflag &= ~CSTOPB; // Ensure one stop bit is set
@@ -60,42 +61,41 @@ int main(int argc, char *argv[]) {
 
     // Write message
     write(fd, message.c_str(), message.length());
-    // Read response (optional)
-    int maxlines = 20;
-    int linecount = 0;
-    int num_newline = 0;
-    int timeout_ms = 200; // 0.2 seconds timeout
-    int elapsed_ms = 0;
-    while (linecount++ < maxlines)
+    // Read response until 'OK\n' or maxlength or timeout
+    int maxlength = 2000;
+    int charcount = 0;
+	bool showspecial = false;
+	string ok("OK\n");
+	unsigned iok = 0;
+	printf("[BEGIN RESPONSE]\n");
+    while (charcount++ < maxlength)
     { 
-        char buf[100];
-        int n = read(fd, buf, sizeof(buf)-1);
+        char c;
+        int n = read(fd, &c, 1);
         if (n > 0) {
-            buf[n] = 0;
-            elapsed_ms = 0; // reset timeout if data received
-            for (int i = 0; i < n; ++i) {
-                if (buf[i] == '\n')
-                {
-                    num_newline++;
-                    //printf("<0x%02X>", buf[i]);
-                    if (0 == num_newline % 2)
-                        cout << endl;        
-                }
-                else
-                {
-                    putchar(buf[i]);
-                }
-            }
-            fflush(stdout);
+			if(showspecial && c < 16)
+				printf("<0x%02X>", c);
+
+			putchar(c);
+			if (c == '\n')
+				fflush(stdout);
+				
+			if(c == ok[iok]) {
+				iok++;
+				if (iok == ok.length()) {
+					printf("[END RESPONSE, length: %d]\n", charcount);
+					break;
+				}
+			}
         } else {
-            usleep(100000); // sleep 100ms
-            elapsed_ms += 100;
-            if (elapsed_ms >= timeout_ms) {
-                printf("\nResponse timeout reached (%d ms).\n", timeout_ms);
-                break;
-            }
+			printf("[TIMEOUT]\n");
+            break;
         }
     }
     close(fd);
+    
+    if(charcount >= maxlength)
+		printf("[TOO LONG]\n");
+		
     return 0;
 }

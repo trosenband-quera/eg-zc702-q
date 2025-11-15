@@ -32,13 +32,10 @@ mkdir -p $DEST
 
 make clean
 make -j8 all
-
-exit
-
 make install
 
-rm -rf $DEST/share
-scp -r $DEST root@zynq:/usr/local/zynq/
+scp -r $DEST zc702:/zc702
+
 ssh root@zynq 'ln -sf /usr/local/zynq/zlib/lib/libz.so.1.2.8 /usr/local/lib/libz.so.1.2.8'
 ssh root@zynq 'ln -sf /usr/local/zynq/zlib/lib/libz.so.1.2.8 /usr/local/lib/libz.so.1'
 ssh root@zynq 'ln -sf /usr/local/zynq/zlib/lib/libz.so.1.2.8 /usr/local/lib/libz.so'
