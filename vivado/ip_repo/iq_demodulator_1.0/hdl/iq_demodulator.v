@@ -1,24 +1,30 @@
+// multichannel IQ demodulator with XADC input
+// uses CORDIC atan2 to compute phase from I/Q
+// generate NUM_CHANNELS demodulators in parallel
+
 module iq_demodulator #(
     parameter integer NUM_CHANNELS = 3,
-    parameter integer PHASE_WIDTH = 16,
-    parameter integer LUT_SIZE = 256
+    parameter integer LO_PHASE_WIDTH = 32,
+    parameter integer LUT_WIDTH = 8,
+    parameter integer OUTPUT_PHASE_WIDTH = 16
 ) (
     input  wire                         clk,               // 100 MHz system clock
     input  wire                         rst,
-    input  wire [(16*NUM_CHANNELS-1):0] lo_dds_phase_inc,
+    input  wire [(LO_PHASE_WIDTH*NUM_CHANNELS-1):0] lo_dds_phase_inc,
     output reg  [                 15:0] adc_data_reg,
     output reg  [                 31:0] adc_sample_count,
-    output wire [(16*NUM_CHANNELS-1):0] phases,
+    output wire [(OUTPUT_PHASE_WIDTH*NUM_CHANNELS-1):0] phases,
     output wire [                159:0] debug
 );
   localparam integer IQ_AVG_SHIFT = 16;
 
   // DDS parameters
-  localparam integer COS_OFFSET = (LUT_SIZE / 4) << 8;
+  localparam integer LUT_SIZE = 2**LUT_WIDTH;
+  localparam integer COS_OFFSET = (LUT_SIZE / 4) << (LO_PHASE_WIDTH - LUT_WIDTH);
 
   // DDS phase accumulators (separate for sin and cos)
-  reg [PHASE_WIDTH-1:0] dds_phase_acc_sin[NUM_CHANNELS-1:0];
-  reg [PHASE_WIDTH-1:0] dds_phase_acc_cos[NUM_CHANNELS-1:0];
+  reg [LO_PHASE_WIDTH-1:0] dds_phase_acc_sin[NUM_CHANNELS-1:0];
+  reg [LO_PHASE_WIDTH-1:0] dds_phase_acc_cos[NUM_CHANNELS-1:0];
 
   // LUT for sine only
   reg signed [15:0] sin_lut[0:LUT_SIZE-1];
@@ -39,8 +45,8 @@ module iq_demodulator #(
   genvar ch;
   generate
     for (ch = 0; ch < NUM_CHANNELS; ch = ch + 1) begin : gen_dds_addr
-      assign addr_sin[ch] = dds_phase_acc_sin[ch][PHASE_WIDTH-1-:8];
-      assign addr_cos[ch] = dds_phase_acc_cos[ch][PHASE_WIDTH-1-:8];
+      assign addr_sin[ch] = dds_phase_acc_sin[ch][LO_PHASE_WIDTH-1-:8];
+      assign addr_cos[ch] = dds_phase_acc_cos[ch][LO_PHASE_WIDTH-1-:8];
     end
   endgenerate
 
@@ -93,9 +99,9 @@ module iq_demodulator #(
         end else begin
           if (xadc_ready == 1 && prev_xadc_ready == 0) begin
             dds_phase_acc_sin[ch] <= dds_phase_acc_sin[ch] +
-                                     lo_dds_phase_inc[((ch+1)*16-1):(ch*16)];
+                                     lo_dds_phase_inc[((ch+1)*LO_PHASE_WIDTH-1):(ch*LO_PHASE_WIDTH)];
             dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] +
-                                     lo_dds_phase_inc[((ch+1)*16-1):(ch*16)];
+                                     lo_dds_phase_inc[((ch+1)*LO_PHASE_WIDTH-1):(ch*LO_PHASE_WIDTH)];
             i_avg[ch] <= i_avg[ch] - (i_avg[ch] >>> IQ_AVG_SHIFT) + (mixerI[ch] >>> IQ_AVG_SHIFT);
             q_avg[ch] <= q_avg[ch] - (q_avg[ch] >>> IQ_AVG_SHIFT) + (mixerQ[ch] >>> IQ_AVG_SHIFT);
             mixerI[ch] <= in_signal * sin_lut[addr_cos[ch]];
@@ -109,7 +115,7 @@ module iq_demodulator #(
           .rst(rst),
           .x(i_avg[ch][31:16]),
           .y(q_avg[ch][31:16]),
-          .phase(phases[(16*ch+15):(16*ch)])
+          .phase(phases[(OUTPUT_PHASE_WIDTH*ch+15):(OUTPUT_PHASE_WIDTH*ch)])
       );
     end
   endgenerate
