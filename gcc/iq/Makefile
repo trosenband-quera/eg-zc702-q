@@ -74,7 +74,7 @@ run: transfer
 
 .PHONY : getdata
 getdata: transfer
-	ssh zc702 -C "./$(SELF) -c 0,5,6,7,8,9,10,2,3 -q -f 1.csv -n 1000 -m 1 -s"
+	ssh zc702 -C "./$(SELF) -c 0,1,5,6,7,8,9,10,2,3 -q -f 1.csv -n 1000 -m 1 -s"
 	scp zc702:~/1.csv .
 	python3 plot_csv.py 1.csv
 

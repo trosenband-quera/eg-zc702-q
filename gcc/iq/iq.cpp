@@ -33,19 +33,48 @@ int main(int argc, char *argv[]) {
     int showscaled = 0;   // Show scaled values if requested
     int quiet = 0;        // Do not display data if set
     unsigned ms = 5;
-    std::vector<unsigned> channels_to_read = {1, 0};
-    double scale[] = {0, 1, 2*M_PI/65536, 2*M_PI/65536, 2*M_PI/65536, 
-						0, 0, 
-						0, 0, 
-						0, 0};
-    const unsigned bipolar[] = {1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1};
- 
+    
+     
     // Channel names and offsets
-    const char* channel_names[] = {"VP-VN", "NSAMP", "PHASE0", "PHASE1", "PHASE2", 
-		                           "mixI", "mixQ", "avgmixI", "avgmixQ", "LO_I", "LO_Q"};
-    const unsigned channel_offsets[] = {8*4, 7*4, 9*4, 9*4 + 2, 10*4, 11*4, 12*4, 13*4, 14*4, 15*4, 15*4+2};
-	const unsigned width[] = {2, 4, 2, 2, 2, 4, 4, 4, 4, 2, 2};
+    
+    const unsigned num_demod_channels = 3;
+    const unsigned num_debug_channels = 5;
+    const unsigned num_channels = 2 + num_demod_channels + num_debug_channels; // total channels: NSAMP, VP-VN, PHASE0..N, mixI, mixQ, avgmixI, avgmixQ, LO_I, LO_Q
+    std::vector<unsigned> channels_to_read(num_channels);
+    vector<string> channel_names = {"NSAMP", "VP-VN"}; 
+    for(unsigned i = 0; i < num_demod_channels; i++) {
+        channel_names.push_back("PHASE" + to_string(i));
+    }
+    channel_names.push_back("mixI");
+    channel_names.push_back("mixQ");
+    channel_names.push_back("avgmixI");
+    channel_names.push_back("avgmixQ");
+    channel_names.push_back("LO_I");
+    channel_names.push_back("LO_Q");
 
+    vector<unsigned> channel_offsets(num_channels);
+	vector<unsigned>  width = {4, 2}; // initial width for NSAMP and VP-VN
+    const unsigned read_offset = 0x20; // Base offset for reading channels
+    vector<double> scale = {1, 0}; // initial scale for NSAMP and VP-VN
+    vector<unsigned> bipolar = {0, 1}; // initial bipolar for NSAMP and VP-VN
+
+    for(size_t i=0; i<num_channels; i++) {
+        if(i < 2+num_demod_channels) { // nsamp, vp-vn, phase0..N
+            channel_offsets[i] = (i+read_offset)*4;
+            if(i >=2) {  // phase channels
+                scale.push_back(2*M_PI/65536);
+                bipolar.push_back(1);
+                width.push_back(2);
+            }
+        }
+        else  { // debug channels in reverse order
+            channel_offsets[i] = (31 - (i - (2 + num_demod_channels)) + read_offset)*4;
+            width.push_back(4);
+            bipolar.push_back(1);
+            scale.push_back(0);
+        }
+        channels_to_read[i] = i;      
+    }
     // Command line options
     int opt;
     std::string csv_filename;
@@ -122,9 +151,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-	
-	unsigned num_channels = channels_to_read.size();
-	
 	// get scale from width if 0
     for (size_t i = 0; i < num_channels; ++i) {
         int ch = channels_to_read[i];
@@ -133,7 +159,7 @@ int main(int argc, char *argv[]) {
             for(unsigned j=0; j<width[ch]; j++)
                 scale[ch] /= 256.0;
         }
-        printf("Channel %s (index %d): scale = %g\n", channel_names[ch], ch, scale[ch]);
+        printf("Channel[%2d] %s (index %d): scale = %g\n", ch, channel_names[ch].c_str(), ch, scale[ch]);
     }
 	
     unsigned n = 0;
@@ -187,7 +213,7 @@ int main(int argc, char *argv[]) {
             }
             printf("\n   Channel names:");
             for(auto ch : channels_to_read) {
-                printf(width[ch] == 4 ? " %10s" : " %8s", channel_names[ch]);
+                printf(width[ch] == 4 ? " %10s" : " %8s", channel_names[ch].c_str());
             }
             
             printf("\n");
@@ -201,7 +227,7 @@ int main(int argc, char *argv[]) {
         for (size_t i = 0; i < num_channels; ++i) {
             unsigned ch = channels_to_read[i];
             if(channel_offsets[ch] % 4 == 0)
-                reg = *(volatile unsigned int *)((char *)map_base + offset + (channel_offsets[ch] & 0xfffc));
+                reg = *(volatile unsigned int *)((char *)map_base + (channel_offsets[ch] & 0xfffc));
             else
                 reg = reg >> 16;
 

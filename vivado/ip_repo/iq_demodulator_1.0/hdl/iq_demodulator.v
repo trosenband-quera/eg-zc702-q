@@ -6,7 +6,8 @@ module iq_demodulator #(
     parameter integer NUM_CHANNELS = 3,
     parameter integer LO_PHASE_WIDTH = 32,
     parameter integer LUT_WIDTH = 8,
-    parameter integer OUTPUT_PHASE_WIDTH = 16
+    parameter integer OUTPUT_PHASE_WIDTH = 32,
+    parameter integer CORDIC_PHASE_WIDTH = 16
 ) (
     input  wire                         clk,               // 100 MHz system clock
     input  wire                         rst,
@@ -115,7 +116,7 @@ module iq_demodulator #(
           .rst(rst),
           .x(i_avg[ch][31:16]),
           .y(q_avg[ch][31:16]),
-          .phase(phases[(OUTPUT_PHASE_WIDTH*ch+15):(OUTPUT_PHASE_WIDTH*ch)])
+          .phase(phases[(OUTPUT_PHASE_WIDTH*ch+CORDIC_PHASE_WIDTH-1):(OUTPUT_PHASE_WIDTH*ch)])
       );
     end
   endgenerate

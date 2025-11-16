@@ -20,7 +20,8 @@ def plot_csv(filename, hist_raw=False):
 
     # Identify mixer channels (names containing 'MIX' or 'MIXER')
     mixer_indices = [i for i, h in enumerate(header) if 'MIX' in h.upper() or 'MIXER' in h.upper()]
-    other_indices = [i for i in range(1, arr.shape[1]) if i not in mixer_indices]
+    skip_indices  = [i for i, h in enumerate(header) if 'NSAMP' in h.upper()]
+    other_indices = [i for i in range(1, arr.shape[1]) if i not in mixer_indices and i not in skip_indices]
 
     # Find avgmixI and avgmixQ indices
     try:
@@ -58,6 +59,7 @@ def plot_csv(filename, hist_raw=False):
 
     # Non-mixer channels + atan2(avgmixQ, avgmixI) if present
     for i in other_indices:
+        print(f"Plotting channel {i}: {header[i]}")
         lw = 1
         if i == 1:
             lw = 3

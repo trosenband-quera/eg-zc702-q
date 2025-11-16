@@ -2,15 +2,9 @@
 `timescale 1 ns / 1 ps
 
 module iq_demodulator_v1_0 #(
-    // Users to add parameters here
-
-    // User parameters ends
-    // Do not modify the parameters beyond this line
-
-
     // Parameters of Axi Slave Bus Interface S00_AXI
     parameter integer C_S00_AXI_DATA_WIDTH = 32,
-    parameter integer C_S00_AXI_ADDR_WIDTH = 6
+    parameter integer C_S00_AXI_ADDR_WIDTH = 8
 ) (
     // Users to add ports here
 
