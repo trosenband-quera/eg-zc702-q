@@ -435,10 +435,11 @@ module iq_demodulator_v1_0_S00_AXI #(
   // slv_reg9: phase0
   // slv_reg10: phase1
   // slv_reg11: phase2
-  wire [(16*NUM_DEMOD_CHANNELS-1):0] lo_dds_phase_inc;
+  wire [(32*NUM_DEMOD_CHANNELS-1):0] lo_dds_phase_inc;
   assign lo_dds_phase_inc[31:0]  = slv_reg2;
-  assign lo_dds_phase_inc[47:32] = slv_reg3[15:0];
-
+  assign lo_dds_phase_inc[63:32] = slv_reg3;
+  assign lo_dds_phase_inc[95:64] = slv_reg4;
+  
   wire [15:0] adc_data_wire;
   wire [16*NUM_DEMOD_CHANNELS-1:0] phases;
   wire [31:0] adc_sample_count;
