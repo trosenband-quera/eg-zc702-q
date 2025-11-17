@@ -34,7 +34,7 @@ serial_comm: serial_comm.cpp
 
 serial: serial_comm
 	scp serial_comm zc702:~/
-	ssh zc702 -C "chmod u+x ./serial_comm && ./serial_comm /dev/ttyUSB0 'q'"
+	ssh zc702 -C "chmod u+x ./serial_comm && ./serial_comm -d /dev/ttyUSB0 -m q -B"
 
 $(SELF): $(DEPS)
 
