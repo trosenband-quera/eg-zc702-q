@@ -327,7 +327,7 @@ module iq_demodulator_v1_0_S00_AXI #(
   // Add user logic here
   localparam integer LO_PHASE_WIDTH = 32;
   localparam integer OUTPUT_PHASE_WIDTH = 32;
-  localparam integer NUM_DEBUG_REG = 5;
+  localparam integer NUM_DEBUG_REG = 6;
   
   // Register usage:
   // slv_reg[0,1]                          : Reserved or future use
@@ -338,10 +338,9 @@ module iq_demodulator_v1_0_S00_AXI #(
   // slv_reg[NUM_WRITE_REG+3]              : Demodulated phase channel 1
   // ...
   // slv_reg[NUM_REG-1]                    : Debug info 0
-  // slv_reg[NUM_REG-2]                    : Debug info 1
-  // slv_reg[NUM_REG-3]                    : Debug info 2
-  // slv_reg[NUM_REG-4]                    : Debug info 3
-  // slv_reg[NUM_REG-5]                    : Debug info 4
+  // ...
+  // slv_reg[NUM_REG-NUM_DEBUG_REG]        : Debug info NUM_DEBUG_REG-1
+  
   wire [(32*NUM_DEMOD_CHANNELS-1):0] lo_dds_phase_inc;
 
   wire [OUTPUT_PHASE_WIDTH*NUM_DEMOD_CHANNELS-1:0] phases;
@@ -382,6 +381,9 @@ module iq_demodulator_v1_0_S00_AXI #(
     end
   end
 
+  wire reset_iq;
+  assign reset_iq = ~S_AXI_ARESETN | slv_reg[0][0];
+
   // Instantiate iq_demodulator module
   iq_demodulator #(
       .NUM_CHANNELS(NUM_DEMOD_CHANNELS),
@@ -389,8 +391,9 @@ module iq_demodulator_v1_0_S00_AXI #(
       .OUTPUT_PHASE_WIDTH(OUTPUT_PHASE_WIDTH)
   ) u_iq_demodulator (
       .clk(S_AXI_ACLK),
-      .rst(~S_AXI_ARESETN),
+      .rst(reset_iq),
       .lo_dds_phase_inc(lo_dds_phase_inc),
+      .kp(slv_reg[1][15:0]), // proportional gain for reference phase error correction
       .adc_data_reg(adc_data_wire),
       .adc_sample_count(adc_sample_count),
       .phases(phases),

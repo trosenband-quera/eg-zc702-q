@@ -5,6 +5,27 @@ These are example Vivado projects for generating bitstream files suitable for
 congfiguring the Programmable Logic (PL) part of the Zynq FPGA.
 
 
+iq_project
+-------------
+
+This is a multi-channel IQ-demodulator.  Demodulator Verilog code is a `custom IP`
+in `../ip_repo/iq_demodulator_1.0/hdl`.  Some parameters related to the AXI-bus are in
+`../ip_repo/iq_demodulator_1.0/component.xml`
+
+`make` generates a Vivado project and runs in "Project Mode" where Vivado
+provides all workflow infrastructure and integration with GUI bells and whistles.
+This allows generation of a bitstream.
+
+`make bit` generates the bitstream `top.bit` w/o GUI.
+
+`make clean` removes all generated files.
+
+This workflow has been tested on Vivado 2018.2 and 2025.1 under Ubuntu.
+
+Software to control the demodulator is in `../gcc/iq`.
+
+Project generation via TCL script is derived from `projmode-led8` below.
+
 projmode-led8
 -------------
 

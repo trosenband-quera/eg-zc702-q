@@ -42,7 +42,7 @@ $(SELF): $(DEPS)
 # ~/.ssh/config on the host.
 # I.e. containing something like this:
 #	Host zc702
-#		Hostname 192.168.0.10
+#		Hostname 10.0.0.10
 #		User root
 #		StrictHostKeyChecking no
 #		UserKnownHostsFile /dev/null
@@ -74,7 +74,7 @@ run: transfer
 
 .PHONY : getdata
 getdata: transfer
-	ssh zc702 -C "./$(SELF) -c 0,1,5,6,7,8,9,10,2,3 -q -f 1.csv -n 1000 -m 1 -s"
+	ssh zc702 -C "./$(SELF) -c 0,1,5,6,7,8,9,10,2,3,11 -q -f 1.csv -n 500 -m 1 -s -k 4"
 	scp zc702:~/1.csv .
 	python3 plot_csv.py 1.csv
 

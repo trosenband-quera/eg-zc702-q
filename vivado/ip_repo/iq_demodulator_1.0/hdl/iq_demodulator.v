@@ -7,16 +7,18 @@ module iq_demodulator #(
     parameter integer LO_PHASE_WIDTH = 32,
     parameter integer LUT_WIDTH = 8,
     parameter integer OUTPUT_PHASE_WIDTH = 32,
-    parameter integer CORDIC_PHASE_WIDTH = 16
+    parameter integer CORDIC_PHASE_WIDTH = 16,
+    parameter integer NUM_DEBUG = 6
 ) (
     input  wire                         clk,               // 100 MHz system clock
     input  wire                         rst,
     input  wire [(LO_PHASE_WIDTH*NUM_CHANNELS-1):0] lo_dds_phase_inc,
+    input  wire signed [15:0]           kp,              // proportional gain for reference phase error correction
     output reg  [                 15:0] adc_data_reg,
     output reg  [                 31:0] adc_sample_count,
     output wire [(OUTPUT_PHASE_WIDTH*NUM_CHANNELS-1):0] phases,
-    output wire [                159:0] debug
-);
+    output wire [NUM_DEBUG*32-1:0] debug
+  );
   localparam integer IQ_AVG_SHIFT = 16;
 
   // DDS parameters
@@ -26,6 +28,8 @@ module iq_demodulator #(
   // DDS phase accumulators (separate for sin and cos)
   reg [LO_PHASE_WIDTH-1:0] dds_phase_acc_sin[NUM_CHANNELS-1:0];
   reg [LO_PHASE_WIDTH-1:0] dds_phase_acc_cos[NUM_CHANNELS-1:0];
+
+  reg [LO_PHASE_WIDTH-1:0] lo_dds_phase_inc_reg[NUM_CHANNELS-1:0];
 
   // LUT for sine only
   reg signed [15:0] sin_lut[0:LUT_SIZE-1];
@@ -68,12 +72,16 @@ module iq_demodulator #(
   assign debug[143:128] = sin_lut[addr_cos[0]];
   assign debug[159:144] = sin_lut[addr_sin[0]];
 
+  assign debug[191:160] = lo_dds_phase_inc_reg[0];
   // ADC data sampling and counting, on xadc_ready rising edge
   wire xadc_ready;
   reg prev_xadc_ready;
   wire [15:0] adc_data;
+  // reference phase = channel 0
+  wire signed [CORDIC_PHASE_WIDTH-1:0] phase0;
+  assign phase0 = phases[CORDIC_PHASE_WIDTH-1:0];
 
-  always @(posedge clk) begin
+always @(posedge clk) begin
     if (rst) begin
       adc_sample_count <= 0;
       adc_data_reg <= 0;
@@ -88,7 +96,7 @@ module iq_demodulator #(
     end
   end
 
-  // for each channel, update DDS phase, I/Q, run CORDIC
+  // for each channel, update DDS phase, I/Q, averages, run CORDIC
   generate
     for (ch = 0; ch < NUM_CHANNELS; ch = ch + 1) begin : gen_update_channels
       always @(posedge clk) begin
@@ -97,16 +105,23 @@ module iq_demodulator #(
           dds_phase_acc_cos[ch] <= COS_OFFSET;
           i_avg[ch] <= 0;
           q_avg[ch] <= 0;
+          lo_dds_phase_inc_reg[ch] <= lo_dds_phase_inc[((ch+1)*LO_PHASE_WIDTH-1):(ch*LO_PHASE_WIDTH)];
+          mixerI[ch] <= 0;
+          mixerQ[ch] <= 0;
         end else begin
           if (xadc_ready == 1 && prev_xadc_ready == 0) begin
-            dds_phase_acc_sin[ch] <= dds_phase_acc_sin[ch] +
-                                     lo_dds_phase_inc[((ch+1)*LO_PHASE_WIDTH-1):(ch*LO_PHASE_WIDTH)];
-            dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] +
-                                     lo_dds_phase_inc[((ch+1)*LO_PHASE_WIDTH-1):(ch*LO_PHASE_WIDTH)];
+            dds_phase_acc_sin[ch] <= dds_phase_acc_sin[ch] + lo_dds_phase_inc_reg[ch];
+            dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] + lo_dds_phase_inc_reg[ch];
             i_avg[ch] <= i_avg[ch] - (i_avg[ch] >>> IQ_AVG_SHIFT) + (mixerI[ch] >>> IQ_AVG_SHIFT);
             q_avg[ch] <= q_avg[ch] - (q_avg[ch] >>> IQ_AVG_SHIFT) + (mixerQ[ch] >>> IQ_AVG_SHIFT);
             mixerI[ch] <= in_signal * sin_lut[addr_cos[ch]];
             mixerQ[ch] <= in_signal * sin_lut[addr_sin[ch]];
+            if (ch == 0) begin
+              // adjust LO phase inc based on phase error
+              // lo_dds_phase_inc_reg[0] is unsigned. kp and phase0 are signed
+              if ((kp > 0) == (phase0 > 0))
+                lo_dds_phase_inc_reg[0] <= lo_dds_phase_inc_reg[0] + ((kp * phase0) >>> 16);
+            end
           end
         end
       end

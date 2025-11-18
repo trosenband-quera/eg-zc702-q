@@ -34,23 +34,27 @@ int main(int argc, char *argv[]) {
     int quiet = 0;        // Do not display data if set
     unsigned ms = 5;
     
-     
+    const double SAMPLE_RATE_HZ = 1e6 * 25 / 26.0;
+
     // Channel names and offsets
     
     const unsigned num_demod_channels = 3;
-    const unsigned num_debug_channels = 5;
-    const unsigned num_channels = 2 + num_demod_channels + num_debug_channels; // total channels: NSAMP, VP-VN, PHASE0..N, mixI, mixQ, avgmixI, avgmixQ, LO_I, LO_Q
+    const unsigned num_debug_channels = 7;
+    unsigned num_channels = 2 + num_demod_channels + num_debug_channels; // total channels: NSAMP, VP-VN, PHASE0..N, mixI, mixQ, avgmixI, avgmixQ, LO_I, LO_Q
     std::vector<unsigned> channels_to_read(num_channels);
     vector<string> channel_names = {"NSAMP", "VP-VN"}; 
     for(unsigned i = 0; i < num_demod_channels; i++) {
         channel_names.push_back("PHASE" + to_string(i));
     }
+
+    // debug channels
     channel_names.push_back("mixI");
     channel_names.push_back("mixQ");
     channel_names.push_back("avgmixI");
     channel_names.push_back("avgmixQ");
     channel_names.push_back("LO_I");
     channel_names.push_back("LO_Q");
+    channel_names.push_back("f0");
 
     vector<unsigned> channel_offsets(num_channels);
 	vector<unsigned>  width = {4, 2}; // initial width for NSAMP and VP-VN
@@ -58,21 +62,35 @@ int main(int argc, char *argv[]) {
     vector<double> scale = {1, 0}; // initial scale for NSAMP and VP-VN
     vector<unsigned> bipolar = {0, 1}; // initial bipolar for NSAMP and VP-VN
 
-    for(size_t i=0; i<num_channels; i++) {
-        if(i < 2+num_demod_channels) { // nsamp, vp-vn, phase0..N
-            channel_offsets[i] = (i+read_offset)*4;
-            if(i >=2) {  // phase channels
-                scale.push_back(2*M_PI/65536);
-                bipolar.push_back(1);
-                width.push_back(2);
-            }
-        }
-        else  { // debug channels in reverse order
-            channel_offsets[i] = (31 - (i - (2 + num_demod_channels)) + read_offset)*4;
-            width.push_back(4);
+    for(size_t i=0; i<2+num_demod_channels; i++) {
+    // nsamp, vp-vn, phase0..N
+        channel_offsets[i] = (i+read_offset)*4;
+        if(i >=2) {  // phase channels
+            scale.push_back(2*M_PI/65536);
             bipolar.push_back(1);
-            scale.push_back(0);
+            width.push_back(2);
         }
+        channels_to_read[i] = i;
+    }
+
+    // debug channels in reverse order
+    unsigned channel_offset = (31 + read_offset)*4;
+    for(size_t j=0; j<num_debug_channels; j++) {
+        size_t i = 2 + num_demod_channels + j;
+        channel_offsets[i] = channel_offset;
+        if(channel_names[i] == "LO_I" || channel_names[i] == "LO_Q") {
+            width.push_back(2);
+        } else {
+            width.push_back(4);
+        }
+        channel_offset -= width.back();
+
+        bipolar.push_back(1);
+        scale.push_back(0);
+        if(channel_names[i] == "f0") {
+            scale[i] = SAMPLE_RATE_HZ / 65536.0 / 65536.0;
+        }
+
         channels_to_read[i] = i;      
     }
     // Command line options
@@ -80,8 +98,9 @@ int main(int argc, char *argv[]) {
     std::string csv_filename;
     std::ofstream csvfile;
     int write_csv = 0;
+    int k = 0;
 
-    while ((opt = getopt(argc, argv, "n:m:rc:shf:q")) != -1) {
+    while ((opt = getopt(argc, argv, "n:m:rc:shf:qk:")) != -1) {
         switch (opt) {
             case 'n':
                 nmax = std::strtoul(optarg, nullptr, 0);
@@ -103,7 +122,7 @@ int main(int argc, char *argv[]) {
                 std::string item;
                 while (std::getline(ss, item, ',')) {
                     unsigned ch = std::strtoul(item.c_str(), nullptr, 0);
-                    if (ch < 11) channels_to_read.push_back(ch);
+                    if (ch < channel_names.size()) channels_to_read.push_back(ch);
                 }
                 break;
             }
@@ -114,9 +133,12 @@ int main(int argc, char *argv[]) {
             case 'q':
                 quiet = 1;
                 break;
+            case 'k':
+                k = std::atoi(optarg);
+                break;
             case 'h':
             default:
-                printf("Usage: %s [-n samples] [-r] [-s] [-m ms_delay] [-c channels] [-f csvfile] [-q] [-h]\n", argv[0]);
+                printf("Usage: %s [-n samples] [-r] [-s] [-m ms_delay] [-c channels] [-f csvfile] [-q] [-k kp] [-h]\n", argv[0]);
                 printf("  -n N         Number of samples (default: 20)\n");
                 printf("  -r           Show raw values (default)\n");
                 printf("  -s           Show scaled values (disables raw)\n");
@@ -124,6 +146,7 @@ int main(int argc, char *argv[]) {
                 printf("  -c CHS       Comma-separated channel indices (0:TEMP, 1:VCCINT, ... 6:VCCBRAM)\n");
                 printf("  -f FILE      Output CSV file\n");
                 printf("  -q           Do not display data (quiet mode)\n");
+                printf("  -k KP        Scale factor for phase lock to reference channel 0 (default: 0)\n");
                 printf("  -h           Show this help message\n");
                 return 0;
         }
@@ -135,7 +158,11 @@ int main(int argc, char *argv[]) {
         if (!csvfile.is_open()) {
             fprintf(stderr, "Failed to open CSV file: %s\n", csv_filename.c_str());
             return 1;
+        } else {
+            printf("Writing CSV output to %s\n", csv_filename.c_str());
         }
+    } else {
+        printf("No CSV output file specified.\n");
     }
 
     fd = open("/dev/mem", O_RDWR | O_SYNC);
@@ -152,6 +179,7 @@ int main(int argc, char *argv[]) {
     }
 
 	// get scale from width if 0
+    num_channels = channels_to_read.size();
     for (size_t i = 0; i < num_channels; ++i) {
         int ch = channels_to_read[i];
         if (0 == scale[ch]) {
@@ -174,11 +202,9 @@ int main(int argc, char *argv[]) {
     printf("Start time: %ld.%09ld\n", start.tv_sec, start.tv_nsec);
 
 // (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
-//                                       SAMPLE_RATE_HZ) << 18);
-	const double SAMPLE_RATE_HZ = 1e6 * 25 / 26.0;
-
+//                                       SAMPLE_RATE_HZ) << 18)
     
-	const vector<double> freq_Hz = {100.0e3, 110.0e3};
+	const vector<double> freq_Hz = {100.0e3, 112.5e3};
     vector<unsigned> phase_inc_values(1+freq_Hz.size()/2, 0);
     for(unsigned i=0; i<freq_Hz.size(); i++) {
         double phase_inc_d = 65536.0 * 65536.0 * freq_Hz[i] / SAMPLE_RATE_HZ;
@@ -193,11 +219,19 @@ int main(int argc, char *argv[]) {
     //*(volatile unsigned int *)((char *)map_base + offset + 0*4) = 0xffffffff; // phase0_is_ref
     //printf("%s\n", (*(volatile unsigned int *)((char *)map_base + offset + 0*4) & 1) ? "phase0 is reference" : "phase0 is not reference");
     
+    printf("Setting kp for phase lock to reference: %f (%d)\n", k/32768.0, k);
+    *(volatile unsigned int *)((char *)map_base + offset + 1*4) = k; // set kp for phase lock to reference
+
     // set LO phase inc registers
     for(unsigned i=0; i<phase_inc_values.size(); i++) {
         *(volatile unsigned int *)((char *)map_base + offset + (2+i)*4) = phase_inc_values[i];
     }
 	
+    // reset IQ demodulator
+    *(volatile unsigned int *)((char *)map_base + offset + 0*4) = 0x1; // assert reset
+    usleep(1000);
+    *(volatile unsigned int *)((char *)map_base + offset + 0*4) = 0x0; // deassert reset
+
     unsigned nsamp0, nsamp;
     
     // Replace vector-based buffer with a one-dimensional dynamically allocated array
@@ -308,7 +342,7 @@ int main(int argc, char *argv[]) {
                     if (width[ch] == 4 && x & 0x80000000)
                         x -= 0x100000000;
                 }
-                csvfile << "," << x * (showscaled ? scale[ch] : 1);
+                csvfile << "," << x * (showscaled ? scale[ch] : 1) + (showscaled && channel_names[ch] == "f0" ? -1e5 : 0);
             }
             csvfile << std::endl;
         }

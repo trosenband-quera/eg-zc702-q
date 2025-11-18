@@ -63,6 +63,7 @@ def plot_csv(filename, hist_raw=False):
         lw = 1
         if i == 1:
             lw = 3
+            
         axs[0].plot(time, arr[:, i], label=header[i], linewidth=lw)
         axs[0].scatter(time, arr[:, i], s=12)
     if has_avgmix:
