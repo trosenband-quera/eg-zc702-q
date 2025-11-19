@@ -1,13 +1,15 @@
 // Reference 1: The CORDIC Computing Technique, Jack Volder
 // in 1959 PROCEEDINGS OF THE WESTERN JOINT COMPUTER CONFERENCE
 module cordic_atan2 #(
-    parameter integer PHASE_WIDTH = 16
+    parameter integer PHASE_WIDTH = 16,
+    parameter integer WRAP_WIDTH = 2
 ) (
     input  wire                          clk,
     input  wire                          rst,
     input  wire signed [PHASE_WIDTH-1:0] x,     // I component
     input  wire signed [PHASE_WIDTH-1:0] y,     // Q component
-    output reg         [PHASE_WIDTH-1:0] phase  // Output phase (fixed-point)
+    output reg  signed [PHASE_WIDTH-1:0] phase,  // Output phase (fixed-point)
+    output reg  signed [WRAP_WIDTH-1:0]  wraps    // Number of phase wraparounds
 );
 
   // Parameters
@@ -29,6 +31,7 @@ reg signed [PHASE_WIDTH-1:0] atan_table [0:ITER-1];
   always @(posedge clk) begin
     if (rst) begin
       phase <= 0;
+      wraps <= 0;
     end else begin
       // first rotate by +/- 90 deg. -- eq. 32, 33
       if (y < 0) begin
@@ -54,6 +57,23 @@ reg signed [PHASE_WIDTH-1:0] atan_table [0:ITER-1];
         end
       end
 
+      // detect phase wraparound
+      //
+      // sign of angle and phase must differ
+      // and angle magnitude must be large: sign of angle and its previous bit differ
+      // and phase magnitude must be large: sign of phase and its previous bit differ
+      if(angle[ITER][PHASE_WIDTH-1] != phase[PHASE_WIDTH-1]  &&
+         angle[ITER][PHASE_WIDTH-2] != angle[ITER][PHASE_WIDTH-1] &&
+         phase[PHASE_WIDTH-2] != phase[PHASE_WIDTH-1]) begin
+        // phase wraparound occurred
+        if (angle[ITER][PHASE_WIDTH-1] == 0) begin
+          // angle is positive, phase is negative
+          wraps <= wraps + 1;
+        end else begin
+          // angle is negative, phase is positive
+          wraps <= wraps - 1;
+        end
+      end
       phase <= angle[ITER];
     end
   end

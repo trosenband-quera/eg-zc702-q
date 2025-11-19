@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
         if(i >=2) {  // phase channels
             scale.push_back(2*M_PI/65536);
             bipolar.push_back(1);
-            width.push_back(2);
+            width.push_back(4);
         }
         channels_to_read[i] = i;
     }

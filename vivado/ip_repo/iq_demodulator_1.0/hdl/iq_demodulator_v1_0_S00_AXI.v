@@ -327,8 +327,9 @@ module iq_demodulator_v1_0_S00_AXI #(
   // Add user logic here
   localparam integer LO_PHASE_WIDTH = 32;
   localparam integer OUTPUT_PHASE_WIDTH = 32;
+  localparam integer CORDIC_PHASE_WIDTH = 16;
   localparam integer NUM_DEBUG_REG = 6;
-  
+  localparam integer WRAP_WIDTH = 2;
   // Register usage:
   // slv_reg[0,1]                          : Reserved or future use
   // slv_reg[2,...,2+NUM_DEMOD_CHANNELS-1] : LO DDS phase increment for each demod channel
@@ -340,11 +341,13 @@ module iq_demodulator_v1_0_S00_AXI #(
   // slv_reg[NUM_REG-1]                    : Debug info 0
   // ...
   // slv_reg[NUM_REG-NUM_DEBUG_REG]        : Debug info NUM_DEBUG_REG-1
-  
+
   wire [(32*NUM_DEMOD_CHANNELS-1):0] lo_dds_phase_inc;
 
   wire [OUTPUT_PHASE_WIDTH*NUM_DEMOD_CHANNELS-1:0] phases;
-  wire [OUTPUT_PHASE_WIDTH-1:0] phase_out [NUM_DEMOD_CHANNELS-1:0];
+  wire signed [OUTPUT_PHASE_WIDTH-1:0] phase_out [NUM_DEMOD_CHANNELS-1:0];
+  wire [(WRAP_WIDTH*NUM_DEMOD_CHANNELS-1):0] wraps;
+  wire signed [WRAP_WIDTH-1:0] wraps_out [NUM_DEMOD_CHANNELS-1:0];
 
   wire [(32*NUM_DEBUG_REG-1):0] debug;
   wire [31:0] debug_out[NUM_DEBUG_REG-1:0];
@@ -358,10 +361,13 @@ module iq_demodulator_v1_0_S00_AXI #(
   for(j = 0; j < NUM_DEMOD_CHANNELS; j = j + 1) begin
     assign lo_dds_phase_inc[LO_PHASE_WIDTH*(j+1)-1:LO_PHASE_WIDTH*j]  = slv_reg[2+j];
     assign phase_out[j] = phases[OUTPUT_PHASE_WIDTH*(j+1)-1:OUTPUT_PHASE_WIDTH*j];
+    assign wraps_out[j] = wraps[WRAP_WIDTH*(j+1)-1:WRAP_WIDTH*j];
   end
 
   wire [15:0] adc_data_wire;
   wire [31:0] adc_sample_count;
+
+  localparam integer MAX = 2 ** (CORDIC_PHASE_WIDTH);  // 2 pi
 
   always @(posedge S_AXI_ACLK) begin
     if (S_AXI_ARESETN == 1'b0) begin
@@ -372,7 +378,7 @@ module iq_demodulator_v1_0_S00_AXI #(
       slv_reg[NUM_WRITE_REG]   <= adc_sample_count;
       slv_reg[NUM_WRITE_REG+1] <= {15'b0, adc_data_wire};
       for(i = 0; i < NUM_DEMOD_CHANNELS; i = i + 1) begin
-        slv_reg[NUM_WRITE_REG+2+i] <= phase_out[i];
+        slv_reg[NUM_WRITE_REG+2+i] <= phase_out[i] - MAX*wraps_out[i];
       end
 
       for(i = 0; i < NUM_DEBUG_REG; i = i + 1) begin
@@ -388,7 +394,9 @@ module iq_demodulator_v1_0_S00_AXI #(
   iq_demodulator #(
       .NUM_CHANNELS(NUM_DEMOD_CHANNELS),
       .LO_PHASE_WIDTH(LO_PHASE_WIDTH),
-      .OUTPUT_PHASE_WIDTH(OUTPUT_PHASE_WIDTH)
+      .OUTPUT_PHASE_WIDTH(OUTPUT_PHASE_WIDTH),
+      .CORDIC_PHASE_WIDTH(CORDIC_PHASE_WIDTH),
+      .CORDIC_WRAP_WIDTH(WRAP_WIDTH)
   ) u_iq_demodulator (
       .clk(S_AXI_ACLK),
       .rst(reset_iq),
@@ -397,6 +405,7 @@ module iq_demodulator_v1_0_S00_AXI #(
       .adc_data_reg(adc_data_wire),
       .adc_sample_count(adc_sample_count),
       .phases(phases),
+      .wraps(wraps),
       .debug(debug)
   );
 

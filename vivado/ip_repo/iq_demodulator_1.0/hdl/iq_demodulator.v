@@ -8,6 +8,7 @@ module iq_demodulator #(
     parameter integer LUT_WIDTH = 8,
     parameter integer OUTPUT_PHASE_WIDTH = 32,
     parameter integer CORDIC_PHASE_WIDTH = 16,
+    parameter integer CORDIC_WRAP_WIDTH = 2,
     parameter integer NUM_DEBUG = 6
 ) (
     input  wire                         clk,               // 100 MHz system clock
@@ -17,9 +18,10 @@ module iq_demodulator #(
     output reg  [                 15:0] adc_data_reg,
     output reg  [                 31:0] adc_sample_count,
     output wire [(OUTPUT_PHASE_WIDTH*NUM_CHANNELS-1):0] phases,
+    output wire [(NUM_CHANNELS*CORDIC_WRAP_WIDTH-1):0] wraps,
     output wire [NUM_DEBUG*32-1:0] debug
   );
-  localparam integer IQ_AVG_SHIFT = 16;
+  localparam integer IQ_AVG_SHIFT = 12;  // simple moving average filter shift (2^n samples)
 
   // DDS parameters
   localparam integer LUT_SIZE = 2**LUT_WIDTH;
@@ -78,10 +80,23 @@ module iq_demodulator #(
   reg prev_xadc_ready;
   wire [15:0] adc_data;
   // reference phase = channel 0
-  wire signed [CORDIC_PHASE_WIDTH-1:0] phase0;
-  assign phase0 = phases[CORDIC_PHASE_WIDTH-1:0];
+  wire signed [CORDIC_PHASE_WIDTH-1:0] phases_array [NUM_CHANNELS-1:0];
+  wire signed [CORDIC_WRAP_WIDTH-1:0] wraps_array [NUM_CHANNELS-1:0];
+  
+  generate
+    for (ch = 0; ch < NUM_CHANNELS; ch = ch + 1) begin : gen_phases
+      assign phases[(OUTPUT_PHASE_WIDTH*ch+CORDIC_PHASE_WIDTH-1):(OUTPUT_PHASE_WIDTH*ch)] = 
+                phases_array[ch];
+      // sign-extend to OUTPUT_PHASE_WIDTH
+      assign phases[(OUTPUT_PHASE_WIDTH*(ch+1)-1):(OUTPUT_PHASE_WIDTH*ch+CORDIC_PHASE_WIDTH)] =
+              {{(OUTPUT_PHASE_WIDTH-CORDIC_PHASE_WIDTH){phases_array[ch][CORDIC_PHASE_WIDTH-1]}}};
 
-always @(posedge clk) begin
+      assign wraps[(CORDIC_WRAP_WIDTH*ch+CORDIC_WRAP_WIDTH-1):(CORDIC_WRAP_WIDTH*ch)] = 
+                wraps_array[ch];
+    end
+  endgenerate
+
+  always @(posedge clk) begin
     if (rst) begin
       adc_sample_count <= 0;
       adc_data_reg <= 0;
@@ -95,6 +110,8 @@ always @(posedge clk) begin
       prev_xadc_ready <= xadc_ready;
     end
   end
+
+  reg signed [15:0] correction;
 
   // for each channel, update DDS phase, I/Q, averages, run CORDIC
   generate
@@ -118,20 +135,27 @@ always @(posedge clk) begin
             mixerQ[ch] <= in_signal * sin_lut[addr_sin[ch]];
             if (ch == 0) begin
               // adjust LO phase inc based on phase error
-              // lo_dds_phase_inc_reg[0] is unsigned. kp and phase0 are signed
-              if ((kp > 0) == (phase0 > 0))
-                lo_dds_phase_inc_reg[0] <= lo_dds_phase_inc_reg[0] + ((kp * phase0) >>> 16);
+              correction <= (phases_array[0] * kp) >>> 16;
+              // lo_dds_phase_inc_reg[0] is unsigned. correction is signed
+              if (correction >= 0)
+                lo_dds_phase_inc_reg[0] <= lo_dds_phase_inc_reg[0] + correction;
+              else // two's complement: invert and add 1 to flip sign
+                lo_dds_phase_inc_reg[0] <= lo_dds_phase_inc_reg[0] - (~correction + 1);
             end
           end
         end
       end
 
-      cordic_atan2 cordic_inst (
+      cordic_atan2 #(
+          .PHASE_WIDTH(CORDIC_PHASE_WIDTH),
+          .WRAP_WIDTH(CORDIC_WRAP_WIDTH)
+      ) cordic_atan2_inst (
           .clk(clk),
           .rst(rst),
           .x(i_avg[ch][31:16]),
           .y(q_avg[ch][31:16]),
-          .phase(phases[(OUTPUT_PHASE_WIDTH*ch+CORDIC_PHASE_WIDTH-1):(OUTPUT_PHASE_WIDTH*ch)])
+          .phase(phases_array[ch]),
+          .wraps(wraps_array[ch])
       );
     end
   endgenerate
