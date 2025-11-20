@@ -32,11 +32,16 @@ default: $(SELF)
 serial_comm: serial_comm.cpp
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) serial_comm.cpp -o serial_comm
 
+.PHONY : serial
 serial: serial_comm
 	scp serial_comm zc702:~/
 	ssh zc702 -C "chmod u+x ./serial_comm && ./serial_comm -d /dev/ttyUSB0 -m q -B"
 
 $(SELF): $(DEPS)
+
+.PHONY : bit
+bit:
+	$(MAKE) -C ../../vivado/iq_project bit
 
 # For this target to work you need to have ssh setup appropriately using
 # ~/.ssh/config on the host.
@@ -74,7 +79,7 @@ run: transfer
 
 .PHONY : getdata
 getdata: transfer
-	ssh zc702 -C "./$(SELF) -c 0,1,5,6,7,8,9,10,2,3,11 -q -f 1.csv -n 500 -m 1 -s -k 0"
+	ssh zc702 -C "./$(SELF) -c 0,1,5,6,7,8,9,10,2,11 -q -f 1.csv -n 4000 -m 10 -s -k 5"
 	scp zc702:~/1.csv .
 	python3 plot_csv.py 1.csv
 

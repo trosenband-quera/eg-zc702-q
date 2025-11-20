@@ -2,7 +2,7 @@
 // in 1959 PROCEEDINGS OF THE WESTERN JOINT COMPUTER CONFERENCE
 module cordic_atan2 #(
     parameter integer PHASE_WIDTH = 16,
-    parameter integer WRAP_WIDTH = 2
+    parameter integer WRAP_WIDTH = 8
 ) (
     input  wire                          clk,
     input  wire                          rst,

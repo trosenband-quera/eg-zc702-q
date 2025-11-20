@@ -279,8 +279,8 @@ int main(int argc, char *argv[]) {
 			nsamp0 = nsamp;
 		}
 		
-        if (!quiet && showraw) {
-            printf("   RAW %6ld us:", us);
+        if ((!quiet && showraw) || (n == nmax - 1)  ||     (n == 0) ) {
+            printf(" RAW %8ld us:", us);
             for (size_t i = 0; i < num_channels; ++i) {
                 printf(width[channels_to_read[i]] == 4 ? " 0x%08X" : "   0x%04X", 
                        data_buffer[n * (num_channels + 1) + (i + 1)]);

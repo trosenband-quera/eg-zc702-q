@@ -329,7 +329,7 @@ module iq_demodulator_v1_0_S00_AXI #(
   localparam integer OUTPUT_PHASE_WIDTH = 32;
   localparam integer CORDIC_PHASE_WIDTH = 16;
   localparam integer NUM_DEBUG_REG = 6;
-  localparam integer WRAP_WIDTH = 2;
+  localparam integer WRAP_WIDTH = 8;
   // Register usage:
   // slv_reg[0,1]                          : Reserved or future use
   // slv_reg[2,...,2+NUM_DEMOD_CHANNELS-1] : LO DDS phase increment for each demod channel
@@ -351,6 +351,8 @@ module iq_demodulator_v1_0_S00_AXI #(
 
   wire [(32*NUM_DEBUG_REG-1):0] debug;
   wire [31:0] debug_out[NUM_DEBUG_REG-1:0];
+
+  wire [NUM_DEMOD_CHANNELS-1:0] signal_good;
 
   genvar j;
 
@@ -376,7 +378,7 @@ module iq_demodulator_v1_0_S00_AXI #(
       end
     end else begin
       slv_reg[NUM_WRITE_REG]   <= adc_sample_count;
-      slv_reg[NUM_WRITE_REG+1] <= {15'b0, adc_data_wire};
+      slv_reg[NUM_WRITE_REG+1] <= {signal_good, adc_data_wire};
       for(i = 0; i < NUM_DEMOD_CHANNELS; i = i + 1) begin
         slv_reg[NUM_WRITE_REG+2+i] <= phase_out[i] - MAX*wraps_out[i];
       end
@@ -402,11 +404,13 @@ module iq_demodulator_v1_0_S00_AXI #(
       .rst(reset_iq),
       .lo_dds_phase_inc(lo_dds_phase_inc),
       .kp(slv_reg[1][15:0]), // proportional gain for reference phase error correction
+      .signal_good_threshold(slv_reg[1][31:16]),
       .adc_data_reg(adc_data_wire),
       .adc_sample_count(adc_sample_count),
       .phases(phases),
       .wraps(wraps),
-      .debug(debug)
+      .debug(debug),
+      .signal_good(signal_good)
   );
 
   // User logic ends
