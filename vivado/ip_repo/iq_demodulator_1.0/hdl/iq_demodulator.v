@@ -103,6 +103,7 @@ module iq_demodulator #(
   endgenerate
 
   reg signed [31:0] f0; // for channel 0 LO phase lock
+  reg signed [31:0] f00; // for channel 0 LO phase lock
   reg signed [31:0] unwrapped_phase0;
 
   localparam integer MAX = 2 ** (CORDIC_PHASE_WIDTH);  // 2 pi
@@ -113,6 +114,7 @@ module iq_demodulator #(
       adc_data_reg <= 0;
       prev_xadc_ready <= 0;
       f0 <= lo_dds_phase_inc[LO_PHASE_WIDTH-1:0];
+      f00 <= lo_dds_phase_inc[LO_PHASE_WIDTH-1:0];
       lo_dds_phase_inc_reg[0] <= lo_dds_phase_inc[LO_PHASE_WIDTH-1:0];
     end else begin
       // init read
@@ -120,9 +122,9 @@ module iq_demodulator #(
         unwrapped_phase0 <= phases_array[0] - MAX*wraps_array[0];
         adc_sample_count <= adc_sample_count + 1;
         adc_data_reg <= adc_data;
-        if ((adc_sample_count & 16'h3fff) < kp) begin
+        if ((adc_sample_count & 16'h3fff) == 0) begin
           // adjust LO phase inc based on phase error
-          f0 <= f0 - (unwrapped_phase0 >>> 14);
+          f0 <= f00 - (unwrapped_phase0 >>> kp[4:0]);
         end
       end
       lo_dds_phase_inc_reg[0] <= f0;
