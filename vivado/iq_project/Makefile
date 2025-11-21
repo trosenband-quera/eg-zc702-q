@@ -7,6 +7,11 @@ default:
 .PHONY : bit
 bit:
 	vivado -mode batch -source genbitstream.tcl
+
+.PHONY : check
+check:
+	echo "Compile & elaborate to check Verilog."
+	$(MAKE) -C xsim nosim
 	
 .PHONY : clean
 clean:
