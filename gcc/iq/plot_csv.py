@@ -61,8 +61,8 @@ def plot_csv(filename, hist_raw=False):
     for i in other_indices:
         print(f"Plotting channel {i}: {header[i]}")
         lw = 1
-        if i == 1:
-            lw = 3
+        if 'f0' in header[i].lower() or 'phase' in header[i].lower():
+            lw = 4
             
         axs[0].plot(time, arr[:, i], label=header[i], linewidth=lw)
         axs[0].scatter(time, arr[:, i], s=12)
@@ -76,8 +76,11 @@ def plot_csv(filename, hist_raw=False):
     # Mixer channels
     for i in mixer_indices:
         y = arr[:, i]
-        axs[1].plot(time, y, label=header[i])
-        axs[1].scatter(time, y, s=12)
+        if 'SIGNAL' in header[i].upper() or 'AVG' in header[i].upper():
+            axs[1].plot(time, y, label=header[i], linewidth=4)
+        else:
+            axs[1].scatter(time, y, s=6, label=header[i])
+
     axs[1].set_xlabel("time (ms)")
     axs[1].set_title("Mixer Channels")
     axs[1].legend()

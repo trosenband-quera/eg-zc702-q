@@ -22,6 +22,14 @@
 
 using namespace std;
 
+void set_register(volatile void *map_base, unsigned num, unsigned value) {
+    *(volatile unsigned int *)((char *)map_base + num*4) = value;
+}
+
+unsigned get_register(volatile void *map_base, unsigned offset) {
+    return *(volatile unsigned int *)((char *)map_base + offset);
+}
+
 int main(int argc, char *argv[]) {
     int fd;
     void *map_base;
@@ -80,10 +88,10 @@ int main(int argc, char *argv[]) {
     for(size_t j=0; j<num_debug_channels; j++) {
         size_t i = num_initial_channels + num_demod_channels + j;
         
-        if(channel_names[i].find("f0") == string::npos) {
-            width.push_back(2);
-        } else {
+        if(channel_names[i].find("f0") != string::npos) {
             width.push_back(4);
+        } else {
+            width.push_back(2);
         }
         channel_offset -= width.back();
         channel_offsets[i] = channel_offset;
@@ -101,9 +109,10 @@ int main(int argc, char *argv[]) {
     std::string csv_filename;
     std::ofstream csvfile;
     int write_csv = 0;
-    unsigned k = 0;
+    unsigned kp = 0;
+    unsigned ki = 0;
     unsigned signal_good_threshold = 0;
-    while ((opt = getopt(argc, argv, "n:m:rc:shf:qk:g:")) != -1) {
+    while ((opt = getopt(argc, argv, "n:m:rc:shf:qp:i:g:")) != -1) {
         switch (opt) {
             case 'n':
                 nmax = std::strtoul(optarg, nullptr, 0);
@@ -136,8 +145,11 @@ int main(int argc, char *argv[]) {
             case 'q':
                 quiet = 1;
                 break;
-            case 'k':
-                k = std::atoi(optarg);
+            case 'p':
+                kp = std::atoi(optarg);
+                break;
+            case 'i':
+                ki = std::atoi(optarg);
                 break;
             case 'g':
                 signal_good_threshold = std::atoi(optarg);
@@ -152,7 +164,8 @@ int main(int argc, char *argv[]) {
                 printf("  -c CHS       Comma-separated channel indices (0:TEMP, 1:VCCINT, ... 6:VCCBRAM)\n");
                 printf("  -f FILE      Output CSV file\n");
                 printf("  -q           Do not display data (quiet mode)\n");
-                printf("  -k KP        Scale factor for phase lock to reference channel 0 (default: 0)\n");
+                printf("  -p KP        Scale factor for phase lock to reference channel 0 (default: 0)\n");
+                printf("  -i KI        Integral scale factor for phase lock to reference channel 0 (default: 0)\n");
                 printf("  -g G         Signal good threshold (default: 0)\n");
                 printf("  -h           Show this help message\n");
                 return 0;
@@ -199,7 +212,6 @@ int main(int argc, char *argv[]) {
 	
     unsigned n = 0;
 
-    const unsigned offset = 0x00;
     int sleepval = ms * 1000;
     long us0 = 0;
 	long us;
@@ -226,18 +238,22 @@ int main(int argc, char *argv[]) {
     //*(volatile unsigned int *)((char *)map_base + offset + 0*4) = 0xffffffff; // phase0_is_ref
     //printf("%s\n", (*(volatile unsigned int *)((char *)map_base + offset + 0*4) & 1) ? "phase0 is reference" : "phase0 is not reference");
     
-    printf("Setting kp for phase lock to reference: %f (%d)\n", k/32768.0, k);
-    *(volatile unsigned int *)((char *)map_base + offset + 1*4) = (signal_good_threshold << 16) | k; // set kp for phase lock to reference
+    printf("Setting kp for phase lock to reference: 2^(%d)\n", -kp);
+    printf("Setting ki for phase lock to reference: 2^(%d)\n", -ki);
+    set_register(map_base, 1, (ki << 16) | kp); // set kp for phase lock to reference
+
+    printf("Setting signal good threshold: %d\n", signal_good_threshold);
+    set_register(map_base, 2, signal_good_threshold); // set ki for phase lock to reference
 
     // set LO phase inc registers
     for(unsigned i=0; i<phase_inc_values.size(); i++) {
-        *(volatile unsigned int *)((char *)map_base + offset + (2+i)*4) = phase_inc_values[i];
+        set_register(map_base, 4 + i, phase_inc_values[i]);
     }
 	
     // reset IQ demodulator
-    *(volatile unsigned int *)((char *)map_base + offset + 0*4) = 0x1; // assert reset
+    set_register(map_base, 0, 0x1); // assert reset
     usleep(1000);
-    *(volatile unsigned int *)((char *)map_base + offset + 0*4) = 0x0; // deassert reset
+    set_register(map_base, 0, 0x0); // deassert reset
 
     unsigned nsamp0, nsamp;
     
@@ -250,7 +266,7 @@ int main(int argc, char *argv[]) {
         if(n % nmax == 0) {
             printf("  offset address:");
             for(auto ch : channels_to_read) {
-                printf(width[ch] == 4 ? "     0x%04X" : "   0x%04X", offset + channel_offsets[ch]);
+                printf(width[ch] == 4 ? "     0x%04X" : "   0x%04X", channel_offsets[ch]);
             }
             printf("\n   Channel names:");
             for(auto ch : channels_to_read) {
@@ -267,7 +283,7 @@ int main(int argc, char *argv[]) {
         data_buffer[n * (num_channels + 1) + 0] = us;
         for (size_t i = 0; i < num_channels; ++i) {
             unsigned ch = channels_to_read[i];
-            reg = *(volatile unsigned int *)((char *)map_base + (channel_offsets[ch] & 0xfffc));
+            reg = get_register(map_base, (channel_offsets[ch] & 0xfffc));
             if(channel_offsets[ch] % 4 == 2)
                 reg = reg >> 16;
 

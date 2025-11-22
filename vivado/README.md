@@ -18,6 +18,10 @@ This allows generation of a bitstream.
 
 `make bit` generates the bitstream `top.bit` w/o GUI.
 
+`make bitcfg` same as above and configure attached zc702 board.
+
+`make check` check for Verilog errors.
+
 `make clean` removes all generated files.
 
 This workflow has been tested on Vivado 2018.2 and 2025.1 under Ubuntu.

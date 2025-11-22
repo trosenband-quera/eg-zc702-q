@@ -361,7 +361,7 @@ module iq_demodulator_v1_0_S00_AXI #(
   end
 
   for(j = 0; j < NUM_DEMOD_CHANNELS; j = j + 1) begin
-    assign lo_dds_phase_inc[LO_PHASE_WIDTH*(j+1)-1:LO_PHASE_WIDTH*j]  = slv_reg[2+j];
+    assign lo_dds_phase_inc[LO_PHASE_WIDTH*(j+1)-1:LO_PHASE_WIDTH*j] = slv_reg[4+j];
     assign phase_out[j] = phases[OUTPUT_PHASE_WIDTH*(j+1)-1:OUTPUT_PHASE_WIDTH*j];
     assign wraps_out[j] = wraps[WRAP_WIDTH*(j+1)-1:WRAP_WIDTH*j];
   end
@@ -405,7 +405,8 @@ module iq_demodulator_v1_0_S00_AXI #(
       .rst(reset_iq),
       .lo_dds_phase_inc(lo_dds_phase_inc),
       .kp(slv_reg[1][15:0]), // proportional gain for reference phase error correction
-      .signal_good_threshold(slv_reg[1][31:16]),
+      .ki(slv_reg[1][31:16]), // integral gain for reference phase error correction
+      .signal_good_threshold(slv_reg[2][15:0]),
       .adc_data_reg(adc_data_wire),
       .adc_sample_count(adc_sample_count),
       .phases(phases),

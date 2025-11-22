@@ -17,6 +17,7 @@ module iq_demodulator #(
     input  wire                         rst,
     input  wire [(LO_PHASE_WIDTH*NUM_CHANNELS-1):0] lo_dds_phase_inc,
     input  wire signed [15:0]           kp,              // proportional gain for reference phase error correction
+    input  wire signed [15:0]           ki,              // integral gain for reference phase error correction
     input  wire [15:0] signal_good_threshold,
     output reg  [                 15:0] adc_data_reg,
     output reg  [                 31:0] adc_sample_count,
@@ -110,7 +111,7 @@ module iq_demodulator #(
   reg signed [31:0] f0; // for channel 0 LO phase lock
   reg signed [31:0] f00; // for channel 0 LO phase lock
   reg signed [31:0] unwrapped_phase0;
-
+  reg signed [31:0] integrator;
   localparam integer MAX = 2 ** (CORDIC_PHASE_WIDTH);  // 2 pi
 
   always @(posedge clk) begin
@@ -121,15 +122,23 @@ module iq_demodulator #(
       f0 <= lo_dds_phase_inc[LO_PHASE_WIDTH-1:0];
       f00 <= lo_dds_phase_inc[LO_PHASE_WIDTH-1:0];
       lo_dds_phase_inc_reg[0] <= lo_dds_phase_inc[LO_PHASE_WIDTH-1:0];
+      integrator <= 0;
     end else begin
       // init read
       if (xadc_ready == 1 && prev_xadc_ready == 0) begin
         unwrapped_phase0 <= phases_array[0] - MAX*wraps_array[0];
         adc_sample_count <= adc_sample_count + 1;
         adc_data_reg <= adc_data;
-        if ((adc_sample_count & 16'h3fff) == 0) begin
-          // adjust LO phase inc based on phase error
-          f0 <= f00 - (unwrapped_phase0 >>> kp[4:0]);
+        if (signal_good[0] != 0) begin
+          if ((adc_sample_count & 16'h3fff) == 0) begin
+            // adjust LO phase inc based on phase error
+            f0 <= f00 - (unwrapped_phase0 >>> kp[7:0]) - integrator;
+            integrator <= integrator + (unwrapped_phase0 >>> ki[7:0]);
+          end
+        end else begin
+          // signal not good, hold f0 constant
+          f0 <= f0;
+          integrator <= integrator;
         end
       end
       lo_dds_phase_inc_reg[0] <= f0;
