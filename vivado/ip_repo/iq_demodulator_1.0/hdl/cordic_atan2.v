@@ -5,16 +5,16 @@
 
 module cordic_atan2 #(
     parameter integer PHASE_WIDTH = 16,
-    parameter integer WRAP_WIDTH = 8
+    parameter integer WRAP_WIDTH  = 8
 ) (
-    input  wire                          clk,
-    input  wire                          rst,
-    input  wire signed [PHASE_WIDTH-1:0] x,     // I component
-    input  wire signed [PHASE_WIDTH-1:0] y,     // Q component
-    output reg  signed [PHASE_WIDTH-1:0] phase,  // Output phase (fixed-point)
-    output reg  signed [WRAP_WIDTH-1:0]  wraps,    // Number of phase wraparounds
-    output reg         [PHASE_WIDTH:0] magnitude,  // Output magnitude (fixed-point with extra bit)
-    input  wire                          signal_good
+    input wire clk,
+    input wire rst,
+    input wire signed [PHASE_WIDTH-1:0] x,  // I component
+    input wire signed [PHASE_WIDTH-1:0] y,  // Q component
+    output reg signed [PHASE_WIDTH-1:0] phase,  // Output phase (fixed-point)
+    output reg signed [WRAP_WIDTH-1:0] wraps,  // Number of phase wraparounds
+    output reg [PHASE_WIDTH:0] magnitude,  // Output magnitude (fixed-point with extra bit)
+    input wire signal_good
 );
 
   // Parameters
@@ -22,12 +22,12 @@ module cordic_atan2 #(
   localparam integer MAX = 2 ** (ITER - 1);  // 180 deg.
   localparam real SCALE = MAX / 3.1415926535;
 
-reg signed [PHASE_WIDTH+1:0] x_reg [0:ITER]; // extra bits for overflow
-reg signed [PHASE_WIDTH+1:0] y_reg [0:ITER];
-reg signed [PHASE_WIDTH-1:0] angle [0:ITER]; // accumulated angle
+  reg signed [PHASE_WIDTH+1:0] x_reg[0:ITER];  // extra bits for overflow
+  reg signed [PHASE_WIDTH+1:0] y_reg[0:ITER];
+  reg signed [PHASE_WIDTH-1:0] angle[0:ITER];  // accumulated angle
 
   // Arctangent lookup table (in radians, scaled to 16-bit)
-reg signed [PHASE_WIDTH-1:0] atan_table [0:ITER-1];
+  reg signed [PHASE_WIDTH-1:0] atan_table[0:ITER-1];
   integer i;
   initial begin
     for (i = 0; i < ITER; i = i + 1) atan_table[i] = ($atan(2.0 ** (-i)) * SCALE);  // eq. 27
@@ -68,7 +68,7 @@ reg signed [PHASE_WIDTH-1:0] atan_table [0:ITER-1];
       // sign of angle and phase must differ
       // and angle magnitude must be large: sign of angle and its previous bit differ
       // and phase magnitude must be large: sign of phase and its previous bit differ
-      if(signal_good) begin
+      if (signal_good) begin
         if(angle[ITER][PHASE_WIDTH-1] != phase[PHASE_WIDTH-1]  &&
           angle[ITER][PHASE_WIDTH-2] != angle[ITER][PHASE_WIDTH-1] &&
           phase[PHASE_WIDTH-2] != phase[PHASE_WIDTH-1]) begin
