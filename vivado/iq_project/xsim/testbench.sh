@@ -35,7 +35,10 @@ run()
   setup $1 $2
   compile
   elaborate
-  simulate
+  
+  if [[ ($1 != "-nosim") ]]; then
+    simulate
+  fi
 }
 
 # RUN_STEP: <compile>
@@ -100,7 +103,7 @@ reset_run()
 # Check command line arguments
 check_args()
 {
-  if [[ ($1 == 1 ) && ($2 != "-lib_map_path" && $2 != "-noclean_files" && $2 != "-reset_run" && $2 != "-help" && $2 != "-h") ]]; then
+  if [[ ($1 == 1 ) && ($2 != "-lib_map_path" && $2 != "-noclean_files" && $2 != "-reset_run" && $2 != "-help" && $2 != "-h" && $2 != "-nosim") ]]; then
     echo -e "ERROR: Unknown option specified '$2' (type \"./testbench.sh -help\" for more information)\n"
     exit 1
   fi
@@ -116,6 +119,7 @@ usage()
   msg="Usage: testbench.sh [-help]\n\
 Usage: testbench.sh [-lib_map_path]\n\
 Usage: testbench.sh [-reset_run]\n\
+Usage: testbench.sh [-nosim]\n\
 Usage: testbench.sh [-noclean_files]\n\n\
 [-help] -- Print help information for this script\n\n\
 [-lib_map_path <path>] -- Compiled simulation library directory path. The simulation library is compiled\n\

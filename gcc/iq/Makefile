@@ -59,12 +59,12 @@ transfer: default
 # configure FPGA for Xilinx 2025.1 tools
 .PHONY: fpgacfg
 fpgacfg:
-	cp ../../vivado/iq_project/top.bit pl.bit
+	cp ../../vivado/iq_project/top.bit .
 	bootgen -w -image bitstream.bif -arch zynq -process_bitstream bin
 	ssh zc702 -C "mkdir -p /lib/firmware"
-	scp pl.bit.bin zc702:/lib/firmware
+	scp top.bit.bin zc702:/lib/firmware
 	ssh zc702 -C "echo 0 > /sys/class/fpga_manager/fpga0/flags"
-	ssh zc702 -C "echo pl.bit.bin > /sys/class/fpga_manager/fpga0/firmware"
+	ssh zc702 -C "echo top.bit.bin > /sys/class/fpga_manager/fpga0/firmware"
 
 # configure FPGA for Xilinx 2018.2 tools
 .PHONY: xdevcfg
@@ -79,7 +79,7 @@ run: transfer
 
 .PHONY : getdata
 getdata: transfer
-	ssh zc702 -C "./$(SELF) -c 0,1,5,6,7,8,9,10,2,11 -q -f 1.csv -n 500 -m 1 -s -k 1"
+	ssh zc702 -C "./$(SELF) -c 0,1,2,3,6,7,8,9,10,11,12,13 -q -f 1.csv -n 500 -m 1 -s -k 1 -g 3000"
 	scp zc702:~/1.csv .
 	python3 plot_csv.py 1.csv
 

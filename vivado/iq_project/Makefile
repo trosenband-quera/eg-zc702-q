@@ -8,6 +8,19 @@ default:
 bit:
 	vivado -mode batch -source genbitstream.tcl
 
+# configure FPGA for Xilinx 2025.1 tools
+.PHONY: fpgacfg
+fpgacfg:
+	cp ../../vivado/iq_project/top.bit pl.bit
+	bootgen -w -image bitstream.bif -arch zynq -process_bitstream bin
+	ssh zc702 -C "mkdir -p /lib/firmware"
+	scp top.bit.bin zc702:/lib/firmware
+	ssh zc702 -C "echo 0 > /sys/class/fpga_manager/fpga0/flags"
+	ssh zc702 -C "echo top.bit.bin > /sys/class/fpga_manager/fpga0/firmware"
+	
+.PHONY: bitcfg
+bitcfg: bit fpgacfg
+
 .PHONY : check
 check:
 	echo "Compile & elaborate to check Verilog."

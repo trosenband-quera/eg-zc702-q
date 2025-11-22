@@ -19,7 +19,7 @@ def plot_csv(filename, hist_raw=False):
     print(f"Plotting data from {filename} with shape {arr.shape}")
 
     # Identify mixer channels (names containing 'MIX' or 'MIXER')
-    mixer_indices = [i for i, h in enumerate(header) if 'MIX' in h.upper() or 'MIXER' in h.upper()]
+    mixer_indices = [i for i, h in enumerate(header) if 'MIX' in h.upper() or 'MIXER' in h.upper() or 'signal' in h.lower()]
     skip_indices  = [i for i, h in enumerate(header) if 'NSAMP' in h.upper()]
     other_indices = [i for i in range(1, arr.shape[1]) if i not in mixer_indices and i not in skip_indices]
 

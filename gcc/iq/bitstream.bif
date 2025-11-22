@@ -1,4 +1,4 @@
 all:
 {
-        pl.bit /* Bitstream file name */
+        top.bit /* Bitstream file name */
 }

@@ -2,6 +2,8 @@
 // uses CORDIC atan2 to compute phase from I/Q
 // generate NUM_CHANNELS demodulators in parallel
 
+`timescale 1 ns / 1 ps
+
 module iq_demodulator #(
     parameter integer NUM_CHANNELS = 3,
     parameter integer LO_PHASE_WIDTH = 32,
@@ -9,13 +11,13 @@ module iq_demodulator #(
     parameter integer OUTPUT_PHASE_WIDTH = 32,
     parameter integer CORDIC_PHASE_WIDTH = 16,
     parameter integer CORDIC_WRAP_WIDTH = 8,
-    parameter integer NUM_DEBUG = 6
+    parameter integer NUM_DEBUG = 8
 ) (
     input  wire                         clk,               // 100 MHz system clock
     input  wire                         rst,
     input  wire [(LO_PHASE_WIDTH*NUM_CHANNELS-1):0] lo_dds_phase_inc,
     input  wire signed [15:0]           kp,              // proportional gain for reference phase error correction
-    input  wire [31:0] signal_good_threshold,
+    input  wire [15:0] signal_good_threshold,
     output reg  [                 15:0] adc_data_reg,
     output reg  [                 31:0] adc_sample_count,
     output wire [(OUTPUT_PHASE_WIDTH*NUM_CHANNELS-1):0] phases,
@@ -64,23 +66,22 @@ module iq_demodulator #(
   reg signed [31:0] mixerI[NUM_CHANNELS-1:0];
   reg signed [31:0] mixerQ[NUM_CHANNELS-1:0];
 
-  assign debug[31:0]  = mixerI[0];
-  assign debug[63:32] = mixerQ[0];
-
+  
   // Simple moving average filter (low-pass)
   reg signed [31:0] i_avg[NUM_CHANNELS-1:0];
   reg signed [31:0] q_avg[NUM_CHANNELS-1:0];
 
   // final signal square average
-  reg signed [31:0] signal_avg[NUM_CHANNELS-1:0];
+  reg [31:0] signal_avg[NUM_CHANNELS-1:0];
 
+  wire [31:0] debug_array [NUM_DEBUG-1:0];
+  assign debug_array[0] = {mixerI[0][31:16], mixerQ[0][31:16]};
+  assign debug_array[1] = {i_avg[0][31:16], q_avg[0][31:16]};
+  assign debug_array[2] = {sin_lut[addr_cos[0]], sin_lut[addr_sin[0]]};
+
+  assign debug_array[3] = lo_dds_phase_inc_reg[0];
+  assign debug_array[4] = {signal_avg[0], 16'h0000};
   
-  assign debug[95:64] = i_avg[0];
-  assign debug[127:96] = q_avg[0];
-  assign debug[143:128] = sin_lut[addr_cos[0]];
-  assign debug[159:144] = sin_lut[addr_sin[0]];
-
-  assign debug[191:160] = lo_dds_phase_inc_reg[0];
   // ADC data sampling and counting, on xadc_ready rising edge
   wire xadc_ready;
   reg prev_xadc_ready;
@@ -88,7 +89,8 @@ module iq_demodulator #(
   // reference phase = channel 0
   wire signed [CORDIC_PHASE_WIDTH-1:0] phases_array [NUM_CHANNELS-1:0];
   wire signed [CORDIC_WRAP_WIDTH-1:0] wraps_array [NUM_CHANNELS-1:0];
-  
+  wire [CORDIC_PHASE_WIDTH:0] magnitude_array [NUM_CHANNELS-1:0]; // should be positive
+
   generate
     for (ch = 0; ch < NUM_CHANNELS; ch = ch + 1) begin : gen_phases
       assign phases[(OUTPUT_PHASE_WIDTH*ch+CORDIC_PHASE_WIDTH-1):(OUTPUT_PHASE_WIDTH*ch)] = 
@@ -99,6 +101,9 @@ module iq_demodulator #(
 
       assign wraps[(CORDIC_WRAP_WIDTH*ch+CORDIC_WRAP_WIDTH-1):(CORDIC_WRAP_WIDTH*ch)] = 
                 wraps_array[ch];
+    end
+    for (ch = 0; ch < NUM_DEBUG; ch = ch + 1) begin : gen_debug
+      assign debug[(32*ch+31):(32*ch)] = debug_array[ch];
     end
   endgenerate
 
@@ -143,7 +148,6 @@ module iq_demodulator #(
           dds_phase_acc_cos[ch] <= COS_OFFSET;
           i_avg[ch] <= 0;
           q_avg[ch] <= 0;
-          signal_avg[ch] <= 0;
           signal_good[ch] <= 0;
           if (ch > 0)
             lo_dds_phase_inc_reg[ch] <= lo_dds_phase_inc[((ch+1)*LO_PHASE_WIDTH-1):(ch*LO_PHASE_WIDTH)];
@@ -156,8 +160,8 @@ module iq_demodulator #(
             dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] + lo_dds_phase_inc_reg[ch];
             i_avg[ch] <= i_avg[ch] - (i_avg[ch] >>> IQ_AVG_SHIFT) + (mixerI[ch] >>> IQ_AVG_SHIFT);
             q_avg[ch] <= q_avg[ch] - (q_avg[ch] >>> IQ_AVG_SHIFT) + (mixerQ[ch] >>> IQ_AVG_SHIFT);
-            signal_avg[ch] <= (i_avg[ch] * i_avg[ch] + q_avg[ch] * q_avg[ch]) >>> 32;
-            signal_good[ch] <= 1; //(signal_avg[ch] > signal_good_threshold) ? 1'b1 : 1'b0;
+            signal_avg[ch] <= magnitude_array[ch];
+            signal_good[ch] <= (magnitude_array[ch] >= signal_good_threshold) ? 1'b1 : 1'b0;
             // mixer
             mixerI[ch] <= in_signal * sin_lut[addr_cos[ch]];
             mixerQ[ch] <= in_signal * sin_lut[addr_sin[ch]];
@@ -174,7 +178,9 @@ module iq_demodulator #(
           .x(i_avg[ch][31:16]),
           .y(q_avg[ch][31:16]),
           .phase(phases_array[ch]),
-          .wraps(wraps_array[ch])
+          .wraps(wraps_array[ch]),
+          .magnitude(magnitude_array[ch]),
+          .signal_good(signal_good[ch])
       );
     end
   endgenerate

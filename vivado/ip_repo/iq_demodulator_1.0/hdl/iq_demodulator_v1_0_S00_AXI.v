@@ -328,7 +328,7 @@ module iq_demodulator_v1_0_S00_AXI #(
   localparam integer LO_PHASE_WIDTH = 32;
   localparam integer OUTPUT_PHASE_WIDTH = 32;
   localparam integer CORDIC_PHASE_WIDTH = 16;
-  localparam integer NUM_DEBUG_REG = 6;
+  localparam integer NUM_DEBUG_REG = 5;
   localparam integer WRAP_WIDTH = 8;
   // Register usage:
   // slv_reg[0,1]                          : Reserved or future use
@@ -398,7 +398,8 @@ module iq_demodulator_v1_0_S00_AXI #(
       .LO_PHASE_WIDTH(LO_PHASE_WIDTH),
       .OUTPUT_PHASE_WIDTH(OUTPUT_PHASE_WIDTH),
       .CORDIC_PHASE_WIDTH(CORDIC_PHASE_WIDTH),
-      .CORDIC_WRAP_WIDTH(WRAP_WIDTH)
+      .CORDIC_WRAP_WIDTH(WRAP_WIDTH),
+      .NUM_DEBUG(NUM_DEBUG_REG)
   ) u_iq_demodulator (
       .clk(S_AXI_ACLK),
       .rst(reset_iq),
