@@ -5,6 +5,9 @@
 #include <unistd.h>
 #include <fstream>
 #include <time.h>
+#include <iostream>
+#include <sstream>
+#include <map>
 
 #define GPIO_BASE_ADDR  0x41200000
 #define XADC_BASE_ADDR  0x43C00000  
@@ -16,8 +19,6 @@
 #include <vector>
 #include <tuple>
 #include <string>
-#include <sstream>
-#include <cstring>
 #include <cmath>
 
 using namespace std;
@@ -30,19 +31,55 @@ unsigned get_register(volatile void *map_base, unsigned offset) {
     return *(volatile unsigned int *)((char *)map_base + offset);
 }
 
+// Function to read configuration from a file
+map<string, string> read_config(const string& config_file) {
+    map<string, string> config;
+    if(config_file.empty()) {
+        cout << "No config file specified, using default parameters." << endl;
+        return config;
+    }
+
+    ifstream infile(config_file);
+    if (!infile.is_open()) {
+        cerr << "Could not open config file: " << config_file << endl;
+        return config;
+    }
+    string line;
+    while (getline(infile, line)) {
+        size_t eq = line.find('=');
+        if (eq != string::npos) {
+            string key = line.substr(0, eq);
+            string value = line.substr(eq + 1);
+            config[key] = value;
+        }
+    }
+    return config;
+}
+
 int main(int argc, char *argv[]) {
     int fd;
     void *map_base;
     unsigned int reg;
 
-    // Default values
-    unsigned nmax = 10;
-    int showraw = 1;      // Show raw values by default
-    int showscaled = 0;   // Show scaled values if requested
-    int quiet = 0;        // Do not display data if set
-    unsigned ms = 5;
-    
-    const double SAMPLE_RATE_HZ = 1e6 * 25 / 26.0;
+    string config_file; // default config file
+    if (argc > 1) {
+        config_file = argv[1]; // use first argument as config file name
+    }
+
+    // Read configuration
+    map<string, string> config = read_config(config_file);
+
+    // Set default values
+    unsigned nmax = config.count("nmax") ? std::stoul(config["nmax"]) : 10;
+    int showraw = config.count("showraw") ? std::stoi(config["showraw"]) : 1;
+    int showscaled = config.count("showscaled") ? std::stoi(config["showscaled"]) : 0;
+    int quiet = config.count("quiet") ? std::stoi(config["quiet"]) : 0;
+    unsigned ms = config.count("ms") ? std::stoul(config["ms"]) : 5;
+    std::string csv_filename = config.count("csv_filename") ? config["csv_filename"] : "";
+    unsigned kp = config.count("kp") ? std::stoul(config["kp"]) : 0;
+    unsigned ki = config.count("ki") ? std::stoul(config["ki"]) : 0;
+    unsigned signal_good_threshold = config.count("signal_good_threshold") ? std::stoul(config["signal_good_threshold"]) : 0;
+    std::string channel_list_str = config.count("channel_list") ? config["channel_list"] : "";
 
     // Channel names and offsets
     const unsigned num_initial_channels = 3; // NSAMP, VP-VN, GOOD
@@ -83,6 +120,8 @@ int main(int argc, char *argv[]) {
         channel_offset += width[i];
     }
 
+    const double SAMPLE_RATE_HZ = 1e6 * 25 / 26.0;
+
     // debug channels in reverse order
     channel_offset = (32 + read_offset)*4;
     for(size_t j=0; j<num_debug_channels; j++) {
@@ -104,85 +143,22 @@ int main(int argc, char *argv[]) {
 
         channels_to_read[i] = i;      
     }
-    // Command line options
-    int opt;
-    std::string csv_filename;
-    std::ofstream csvfile;
-    int write_csv = 0;
-    unsigned kp = 0;
-    unsigned ki = 0;
-    unsigned signal_good_threshold = 0;
-    while ((opt = getopt(argc, argv, "n:m:rc:shf:qp:i:g:")) != -1) {
-        switch (opt) {
-            case 'n':
-                nmax = std::strtoul(optarg, nullptr, 0);
-                break;
-            case 'r':
-                showraw = 1;
-                break;
-            case 's':
-                showscaled = 1;
-                showraw = 0;
-                break;
-            case 'm':
-                ms = std::strtoul(optarg, nullptr, 0);
-                break;
-            case 'c': {
-                channels_to_read.clear();
-                std::string arg(optarg);
-                std::stringstream ss(arg);
-                std::string item;
-                while (std::getline(ss, item, ',')) {
-                    unsigned ch = std::strtoul(item.c_str(), nullptr, 0);
-                    if (ch < channel_names.size()) channels_to_read.push_back(ch);
-                }
-                break;
+    
+    // If a specific list of channels is provided in the config, parse it
+    cout << "Channel list string: " << channel_list_str << endl;
+    if (!channel_list_str.empty()) {
+        channels_to_read.clear();
+        stringstream ss(channel_list_str);
+        string item;
+        while (getline(ss, item, ',')) {
+            unsigned ch = std::stoul(item);
+            if (ch < num_channels) {
+                channels_to_read.push_back(ch);
+                cout << "Configured to read channel " << ch << " (" << channel_names[ch] << ")" << endl;
+            } else {
+                cerr << "Warning: Channel " << ch << " is out of range and will be ignored." << endl;
             }
-            case 'f':
-                csv_filename = optarg;
-                write_csv = 1;
-                break;
-            case 'q':
-                quiet = 1;
-                break;
-            case 'p':
-                kp = std::atoi(optarg);
-                break;
-            case 'i':
-                ki = std::atoi(optarg);
-                break;
-            case 'g':
-                signal_good_threshold = std::atoi(optarg);
-                break;
-            case 'h':
-            default:
-                printf("Usage: %s [-n samples] [-r] [-s] [-m ms_delay] [-c channels] [-f csvfile] [-q] [-k kp] [-g G] [-h]\n", argv[0]);
-                printf("  -n N         Number of samples (default: 20)\n");
-                printf("  -r           Show raw values (default)\n");
-                printf("  -s           Show scaled values (disables raw)\n");
-                printf("  -m MS        Delay in ms between samples (default: 5)\n");
-                printf("  -c CHS       Comma-separated channel indices (0:TEMP, 1:VCCINT, ... 6:VCCBRAM)\n");
-                printf("  -f FILE      Output CSV file\n");
-                printf("  -q           Do not display data (quiet mode)\n");
-                printf("  -p KP        Scale factor for phase lock to reference channel 0 (default: 0)\n");
-                printf("  -i KI        Integral scale factor for phase lock to reference channel 0 (default: 0)\n");
-                printf("  -g G         Signal good threshold (default: 0)\n");
-                printf("  -h           Show this help message\n");
-                return 0;
         }
-    }
-
-    // Prepare CSV header if needed
-    if (write_csv) {
-        csvfile.open(csv_filename);
-        if (!csvfile.is_open()) {
-            fprintf(stderr, "Failed to open CSV file: %s\n", csv_filename.c_str());
-            return 1;
-        } else {
-            printf("Writing CSV output to %s\n", csv_filename.c_str());
-        }
-    } else {
-        printf("No CSV output file specified.\n");
     }
 
     fd = open("/dev/mem", O_RDWR | O_SYNC);
@@ -343,7 +319,16 @@ int main(int argc, char *argv[]) {
     if(dt>0)
 		printf("sample rate: %7.3f kHz\n", 1000.0*(nsamp-nsamp0)/dt);
 
-    if (write_csv) {
+    if (csv_filename.length() > 0) {
+        ofstream csvfile;
+        csvfile.open(csv_filename);
+        if (!csvfile.is_open()) {
+            fprintf(stderr, "Failed to open CSV file: %s\n", csv_filename.c_str());
+            return 1;
+        } else {
+            printf("Writing CSV output to %s\n", csv_filename.c_str());
+        }
+
         // Write CSV header
         csvfile << "time_us";
         for (auto ch : channels_to_read) {

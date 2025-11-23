@@ -1,0 +1,9 @@
+channel_list=0,1,2,10,11,3,6,7,8,9,12,13
+quiet=1
+csv_filename=1.csv
+nmax=1000
+m=1
+showscaled=1
+kp=1
+ki=4
+signal_good_threshold=2000

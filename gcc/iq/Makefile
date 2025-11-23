@@ -15,7 +15,7 @@ LD := $(CROSS_COMPILE)-ld
 
 # More warnings.
 CFLAGS := -Wall -Wextra
-CXXFLAGS := -Wall -Wextra -Wno-psabi  #-g -O1 -gdwarf-4
+CXXFLAGS := -Wall -Wextra -Wno-psabi  -O2 #-g -O1 -gdwarf-4
 
 # The minimal linux does not have shared libraries to dynamically link to so
 # executable must be statically linked.
@@ -31,6 +31,14 @@ default: $(SELF)
 
 serial_comm: serial_comm.cpp
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) serial_comm.cpp -o serial_comm
+
+udpsend: udpsend.cpp
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) udpsend.cpp -o udpsend
+
+.PHONY : udp
+udp: udpsend
+	scp udpsend zc702:~/
+	ssh zc702 -C "chmod u+x ./udpsend && ./udpsend 10.0.0.1"
 
 .PHONY : serial
 serial: serial_comm
@@ -54,7 +62,7 @@ bit:
 #		LogLevel QUIET
 .PHONY : transfer
 transfer: default
-	scp $(SELF) zc702:~/
+	scp $(SELF) iq_config.txt zc702:~/
 
 # configure FPGA for Xilinx 2025.1 tools
 .PHONY: fpgacfg
@@ -79,7 +87,7 @@ run: transfer
 
 .PHONY : getdata
 getdata: transfer
-	ssh zc702 -C "./$(SELF) -c 0,1,2,3,6,7,8,9,10,11,12,13 -q -f 1.csv -n 1000 -m 1 -s -p 1 -i 4 -g 3000"
+	ssh zc702 -C "./$(SELF) iq_config.txt"
 	scp zc702:~/1.csv .
 	python3 plot_csv.py 1.csv
 
