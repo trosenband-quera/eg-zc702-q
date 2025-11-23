@@ -26,7 +26,9 @@ module iq_demodulator #(
     output wire [NUM_DEBUG*32-1:0] debug,
     output reg  [NUM_CHANNELS-1:0]   signal_good
   );
-  localparam integer IQ_AVG_SHIFT = 12;  // simple moving average filter shift (2^n samples)
+  localparam integer IQ_AVG_ORDER = 3;  // 3rd order low-pass filter for I/Q
+  localparam integer IQ_AVG_SHIFT = 8;  // 1/e filter shift (2^n samples)
+  localparam integer IQ_AVG_COEFF = 1;  // 1/e filter coefficient
 
   // DDS parameters
   localparam integer LUT_SIZE = 2**LUT_WIDTH;
@@ -66,13 +68,12 @@ module iq_demodulator #(
   wire signed [15:0] in_signal = adc_data_reg;
   reg signed [31:0] mixerI[NUM_CHANNELS-1:0];
   reg signed [31:0] mixerQ[NUM_CHANNELS-1:0];
-
   
-  // Simple moving average filter (low-pass)
-  reg signed [31:0] i_avg[NUM_CHANNELS-1:0];
-  reg signed [31:0] q_avg[NUM_CHANNELS-1:0];
+  // low-pass filtered I/Q
+  wire signed [31:0] i_avg[NUM_CHANNELS-1:0];
+  wire signed [31:0] q_avg[NUM_CHANNELS-1:0];
 
-  // final signal square average
+  // final signal average
   reg [31:0] signal_avg[NUM_CHANNELS-1:0];
 
   wire [31:0] debug_array [NUM_DEBUG-1:0];
@@ -155,9 +156,9 @@ module iq_demodulator #(
         if (rst) begin
           dds_phase_acc_sin[ch] <= 0;
           dds_phase_acc_cos[ch] <= COS_OFFSET;
-          i_avg[ch] <= 0;
-          q_avg[ch] <= 0;
+
           signal_good[ch] <= 0;
+          signal_avg[ch] <= 0;
           if (ch > 0)
             lo_dds_phase_inc_reg[ch] <= lo_dds_phase_inc[((ch+1)*LO_PHASE_WIDTH-1):(ch*LO_PHASE_WIDTH)];
 
@@ -167,16 +168,38 @@ module iq_demodulator #(
           if (xadc_ready == 1 && prev_xadc_ready == 0) begin
             dds_phase_acc_sin[ch] <= dds_phase_acc_sin[ch] + lo_dds_phase_inc_reg[ch];
             dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] + lo_dds_phase_inc_reg[ch];
-            i_avg[ch] <= i_avg[ch] - (i_avg[ch] >>> IQ_AVG_SHIFT) + (mixerI[ch] >>> IQ_AVG_SHIFT);
-            q_avg[ch] <= q_avg[ch] - (q_avg[ch] >>> IQ_AVG_SHIFT) + (mixerQ[ch] >>> IQ_AVG_SHIFT);
+            
             signal_avg[ch] <= magnitude_array[ch];
             signal_good[ch] <= (magnitude_array[ch] >= signal_good_threshold) ? 1'b1 : 1'b0;
+
             // mixer
-            mixerI[ch] <= in_signal * sin_lut[addr_cos[ch]];
-            mixerQ[ch] <= in_signal * sin_lut[addr_sin[ch]];
+            mixerI[ch] <= (in_signal * sin_lut[addr_cos[ch]]);
+            mixerQ[ch] <= (in_signal * sin_lut[addr_sin[ch]]);
           end
         end
       end
+
+      low_pass_n_order #(
+          .ORDER(IQ_AVG_ORDER),
+          .COEFF(IQ_AVG_COEFF),
+          .SHIFT(IQ_AVG_SHIFT)
+      ) lpf_i_inst (
+          .clk(xadc_ready),
+          .reset(rst),
+          .in(mixerI[ch]),
+          .out(i_avg[ch])
+      );
+
+      low_pass_n_order #(
+          .ORDER(IQ_AVG_ORDER),
+          .COEFF(IQ_AVG_COEFF),
+          .SHIFT(IQ_AVG_SHIFT)
+      ) lpf_q_inst (
+          .clk(xadc_ready),
+          .reset(rst),
+          .in(mixerQ[ch]),
+          .out(q_avg[ch])
+      );
 
       cordic_atan2 #(
           .PHASE_WIDTH(CORDIC_PHASE_WIDTH),

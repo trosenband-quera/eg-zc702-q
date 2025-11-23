@@ -656,6 +656,10 @@
         <spirit:name>hdl/cordic_atan2.v</spirit:name>
         <spirit:fileType>verilogSource</spirit:fileType>
       </spirit:file>
+      <spirit:file>
+        <spirit:name>hdl/low_pass_n_order.v</spirit:name>
+        <spirit:fileType>verilogSource</spirit:fileType>
+      </spirit:file>
     </spirit:fileSet>
     <spirit:fileSet>
       <spirit:name>xilinx_verilogbehavioralsimulation_view_fileset</spirit:name>
@@ -673,6 +677,10 @@
       </spirit:file>
       <spirit:file>
         <spirit:name>hdl/cordic_atan2.v</spirit:name>
+        <spirit:fileType>verilogSource</spirit:fileType>
+      </spirit:file>
+      <spirit:file>
+        <spirit:name>hdl/low_pass_n_order.v</spirit:name>
         <spirit:fileType>verilogSource</spirit:fileType>
       </spirit:file>
     </spirit:fileSet>

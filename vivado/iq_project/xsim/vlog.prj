@@ -1,4 +1,5 @@
 verilog xil_defaultlib  \
+"../../ip_repo/iq_demodulator_1.0/hdl/low_pass_n_order.v" \
 "../../ip_repo/iq_demodulator_1.0/hdl/cordic_atan2.v" \
 "../../ip_repo/iq_demodulator_1.0/hdl/iq_demodulator.v" \
 "../../ip_repo/iq_demodulator_1.0/hdl/iq_demodulator_v1_0_S00_AXI.v" \
