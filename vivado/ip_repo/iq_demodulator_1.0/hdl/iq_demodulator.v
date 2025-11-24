@@ -28,7 +28,7 @@ module iq_demodulator #(
   );
   localparam integer IQ_AVG_ORDER = 3;  // 3rd order low-pass filter for I/Q
   localparam integer IQ_AVG_SHIFT = 8;  // 1/e filter shift (2^n samples)
-  localparam integer IQ_AVG_COEFF = 1;  // 1/e filter coefficient
+  localparam integer IQ_AVG_COEFF = 3;  // 1/e filter coefficient
 
   // DDS parameters
   localparam integer LUT_SIZE = 2**LUT_WIDTH;

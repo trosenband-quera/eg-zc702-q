@@ -34,10 +34,10 @@ module low_pass_n_order #(
       // First stage takes input directly
       // NOTE: The result of a multiplication has a width equal to the 
       // sum of the widths of the two operands.
-      stage[0] <= stage[0] + (COEFF * (in >>> SHIFT) - (stage[0] >>> SHIFT));
+      stage[0] <= stage[0] + (COEFF * (in >>> SHIFT) - COEFF * (stage[0] >>> SHIFT));
       for (i = 1; i < ORDER; i = i + 1) begin
         // Subsequent stages take output from previous stage
-        stage[i] <= stage[i] + (COEFF * (stage[i-1] >>> SHIFT) - (stage[i] >>> SHIFT));
+        stage[i] <= stage[i] + (COEFF * (stage[i-1] >>> SHIFT) - COEFF * (stage[i] >>> SHIFT));
       end
       out <= stage[ORDER-1];
     end
