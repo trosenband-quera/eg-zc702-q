@@ -2,7 +2,7 @@
 // each stage is like an RC filter with time constant set by COEFF and SHIFT
 // the 1/e time is (2^SHIFT)/COEFF clock cycles
 // e.g. if clk is 1 MHz, COEFF=8, SHIFT=7, then time constant is 16 us 
-// 
+//      but instead just use COEFF=1, SHIFT=4 to avoid multipliers
 // thanks, chatGPT
 
 `timescale 1 ns / 1 ps
@@ -34,10 +34,10 @@ module low_pass_n_order #(
       // First stage takes input directly
       // NOTE: The result of a multiplication has a width equal to the 
       // sum of the widths of the two operands.
-      stage[0] <= stage[0] + ((COEFF * (in - stage[0])) >>> SHIFT);
+      stage[0] <= stage[0] + (COEFF * (in >>> SHIFT) - (stage[0] >>> SHIFT));
       for (i = 1; i < ORDER; i = i + 1) begin
         // Subsequent stages take output from previous stage
-        stage[i] <= stage[i] + ((COEFF * (stage[i-1] - stage[i])) >>> SHIFT);
+        stage[i] <= stage[i] + (COEFF * (stage[i-1] >>> SHIFT) - (stage[i] >>> SHIFT));
       end
       out <= stage[ORDER-1];
     end
