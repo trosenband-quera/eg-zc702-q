@@ -116,11 +116,12 @@ int main(int argc, char *argv[]) {
     int benchmark = 0;
     int phase = 0;
     int freq = 0;
+    int channel = 0;
     int table_rows = 0;
     int test_table = 0;
     int opt;
 
-    while ((opt = getopt(argc, argv, "d:m:b:BP:F:T:t:")) != -1) {
+    while ((opt = getopt(argc, argv, "d:m:b:BP:F:T:t:c:")) != -1) {
         switch (opt) {
             case 'd':
                 device = optarg;
@@ -145,6 +146,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 't':
                 test_table = atoi(optarg);
+                break;
+            case 'c':
+                channel = atoi(optarg);
                 break;
             default:
                 fprintf(stderr, "Usage: %s -d <device> [-m <message>] [-b baudrate] [-B]\n", argv[0]);
@@ -242,28 +246,18 @@ int main(int argc, char *argv[]) {
     } else if(freq) {
         send_command(fd, "E d"); // disable echo
         get_response(fd, response, 10);
-        
-        if (benchmark) {
-            gettimeofday(&t0, NULL);
-        }
-        for(int i=0; i<freq; i++) {
-            char cmd[32];
-            int ch = i % 4;
-            double f = ((i / 4) % 8) * 200.0 / 9;
-            snprintf(cmd, sizeof(cmd), "F%d %.7lf", ch, f);
-            if(i % 1 == 0) {
-                printf("Setting frequency %6d: %s MHz\n", i, cmd);
-            }
-            //printf("Setting frequency: %s\n", cmd);
-            send_command(fd, cmd);
-            get_response(fd, response, 10);
-            //usleep(1000); // 1 ms delay
-        }
-        if (benchmark) {
-            gettimeofday(&t1, NULL);
-            double elapsed = (t1.tv_sec - t0.tv_sec) + (t1.tv_usec - t0.tv_usec) / 1e6;
-            printf("Benchmark: %.3f ms for %d frequency commands, %.3f cmd/ms\n", elapsed * 1000, freq, freq / elapsed / 1000);
-        }
+        gettimeofday(&t0, NULL);
+        char cmd[32];
+        double f = 1.0 + freq * 1e-6;
+        snprintf(cmd, sizeof(cmd), "F%d %.7lf", channel, f);
+        printf("Setting frequency %6d: %s MHz\n", freq, cmd);
+        //printf("Setting frequency: %s\n", cmd);
+        send_command(fd, cmd);
+        get_response(fd, response, 10);
+        //usleep(1000); // 1 ms delay
+        gettimeofday(&t1, NULL);
+        double elapsed = (t1.tv_sec - t0.tv_sec) + (t1.tv_usec - t0.tv_usec) / 1e6;
+        printf("Benchmark: %.3f ms for %d frequency commands, %.3f cmd/ms\n", elapsed * 1000, freq, freq / elapsed / 1000);
     } else {
         // Print the message being sent
         string message = message0 ? string(message0) : "q";

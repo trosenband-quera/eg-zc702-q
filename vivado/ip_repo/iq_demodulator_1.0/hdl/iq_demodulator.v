@@ -82,7 +82,7 @@ module iq_demodulator #(
   assign debug_array[2] = {sin_lut[addr_cos[0]], sin_lut[addr_sin[0]]};
 
   assign debug_array[3] = lo_dds_phase_inc_reg[0];
-  assign debug_array[4] = {signal_avg[0], 16'h0000};
+  assign debug_array[4] = {signal_avg[0], signal_avg[2]};
   
   // ADC data sampling and counting, on xadc_ready rising edge
   wire xadc_ready;

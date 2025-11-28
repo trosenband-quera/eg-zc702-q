@@ -21,7 +21,7 @@ CXXFLAGS := -Wall -Wextra -Wno-psabi  -O2 #-g -O1 -gdwarf-4
 # executable must be statically linked.
 # Otherwise, when running ./foo you get an error like:
 #	-sh: ./foo: No such file or directory
-LDFLAGS := -static -lm
+LDFLAGS := -static -lm -lgcc
 
 # Link to libraries.
 #LDLIBS := -lm
@@ -100,7 +100,7 @@ gethist:
 .PHONY : clean
 clean:
 	-rm -f *.o *.bit *.csv
-	-rm -f $(SELF) serial_comm
+	-rm -f $(SELF) serial_comm udpsend
 
 # List all Make targets.
 .PHONY : list

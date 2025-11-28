@@ -1,4 +1,3 @@
-
 // udp_sender.c
 // Sends a 32-bit little-endian float over UDP at 100 Hz (1 Hz sine wave)
 
@@ -10,6 +9,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <signal.h>
 
 // Helper: sleep for N milliseconds (coarse but sufficient for demo)
 static void msleep(long ms) {
@@ -47,6 +47,12 @@ static void float_to_le_bytes(float f, unsigned char out[4]) {
     }
 }
 
+static volatile int keep_running = 1;
+
+static void handle_sigint(int sig) {
+    keep_running = 0;
+}
+
 int main(int argc, char** argv) {
     const char* ip = "127.0.0.1";
     int port = 50000;
@@ -73,6 +79,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // Handle kill/interrupt signals for clean exit
+    signal(SIGINT, handle_sigint);
+    signal(SIGTERM, handle_sigint);
+
     // Timebase: monotonic clock
     struct timespec t0;
     clock_gettime(CLOCK_MONOTONIC, &t0);
@@ -80,7 +90,7 @@ int main(int argc, char** argv) {
     printf("Sending UDP floats to %s:%d at %.1f Hz (sine %.1f Hz)\n",
            ip, port, send_rate_hz, freq_hz);
 
-    for (;;) {
+    for (; keep_running;) {
         // Current time
         struct timespec now;
         clock_gettime(CLOCK_MONOTONIC, &now);

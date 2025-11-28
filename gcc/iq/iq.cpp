@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
     // Channel names and offsets
     const unsigned num_initial_channels = 3; // NSAMP, VP-VN, GOOD
     const unsigned num_demod_channels = 3;
-    const unsigned num_debug_channels = 8;
+    const unsigned num_debug_channels = 9;
     unsigned num_channels = num_initial_channels + num_demod_channels + num_debug_channels; // total channels: NSAMP, VP-VN, GOOD, PHASE0..N, mixI, mixQ, avgmixI, avgmixQ, LO_I, LO_Q
     std::vector<unsigned> channels_to_read(num_channels);
     vector<string> channel_names = {"NSAMP", "VP-VN", "GOOD"}; 
@@ -100,7 +100,8 @@ int main(int argc, char *argv[]) {
     channel_names.push_back("LO_I");
     channel_names.push_back("LO_Q");
     channel_names.push_back("f0");
-    channel_names.push_back("signal");
+    channel_names.push_back("signal0");
+    channel_names.push_back("signal2");
 
     vector<unsigned> channel_offsets(num_channels);
 	vector<unsigned>  width = {4, 2, 2}; // initial width for NSAMP and VP-VN
@@ -199,7 +200,7 @@ int main(int argc, char *argv[]) {
 // (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
 //                                       SAMPLE_RATE_HZ) << 18)
     
-	const vector<double> freq_Hz = {100.0e3, 112.5e3};
+	const vector<double> freq_Hz = {100.0e3, 110.0e3, 120.0e3};
     vector<unsigned> phase_inc_values(1+freq_Hz.size()/2, 0);
     for(unsigned i=0; i<freq_Hz.size(); i++) {
         double phase_inc_d = 65536.0 * 65536.0 * freq_Hz[i] / SAMPLE_RATE_HZ;
