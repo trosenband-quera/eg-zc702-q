@@ -1,6 +1,6 @@
 quiet=1
 csv_filename=1.csv
-nmax=1000
+nmax=100
 m=1
 showscaled=1
 kp=1

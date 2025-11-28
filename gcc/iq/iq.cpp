@@ -56,6 +56,18 @@ map<string, string> read_config(const string& config_file) {
     return config;
 }
 
+unsigned set_frequency(volatile void *map_base, unsigned channel, double freq_Hz) {
+    const double SAMPLE_RATE_HZ = 1e6 * 25 / 26.0;
+    double phase_inc_d = 65536.0 * 65536.0 * freq_Hz / SAMPLE_RATE_HZ;
+    unsigned phase_inc = 0.5 + phase_inc_d;
+    double freq_Hz_true = phase_inc * SAMPLE_RATE_HZ / 65536.0 / 65536.0;
+
+    printf("LO %d, target = %.3f Hz, true = %.6f Hz, phase delta = %.3f\n", channel, freq_Hz, freq_Hz_true, phase_inc_d);
+
+    set_register(map_base, 4 + channel, phase_inc);
+    return phase_inc;
+}
+
 int main(int argc, char *argv[]) {
     int fd;
     void *map_base;
@@ -70,6 +82,7 @@ int main(int argc, char *argv[]) {
     map<string, string> config = read_config(config_file);
 
     // Set default values
+    int reference_ch = config.count("ref") ? std::stoi(config["ref"]) : -1;
     unsigned nmax = config.count("nmax") ? std::stoul(config["nmax"]) : 10;
     int showraw = config.count("showraw") ? std::stoi(config["showraw"]) : 1;
     int showscaled = config.count("showscaled") ? std::stoi(config["showscaled"]) : 0;
@@ -80,6 +93,15 @@ int main(int argc, char *argv[]) {
     unsigned ki = config.count("ki") ? std::stoul(config["ki"]) : 0;
     unsigned signal_good_threshold = config.count("signal_good_threshold") ? std::stoul(config["signal_good_threshold"]) : 0;
     std::string channel_list_str = config.count("channel_list") ? config["channel_list"] : "";
+    std::string freqs_str = config.count("freqs") ? config["freqs"] : "100000,112500";
+    std::vector<double> freq_Hz;
+    {
+        stringstream ss(freqs_str);
+        string item;
+        while (getline(ss, item, ',')) {
+            freq_Hz.push_back(std::stod(item));
+        }
+    }
 
     // Channel names and offsets
     const unsigned num_initial_channels = 3; // NSAMP, VP-VN, GOOD
@@ -100,8 +122,8 @@ int main(int argc, char *argv[]) {
     channel_names.push_back("LO_I");
     channel_names.push_back("LO_Q");
     channel_names.push_back("f0");
-    channel_names.push_back("signal0");
     channel_names.push_back("signal2");
+    channel_names.push_back("signal0");
 
     vector<unsigned> channel_offsets(num_channels);
 	vector<unsigned>  width = {4, 2, 2}; // initial width for NSAMP and VP-VN
@@ -199,16 +221,10 @@ int main(int argc, char *argv[]) {
 
 // (((FREQ_HZ[((ch+1)*32-1):(ch*32)] * LUT_SIZE * 64) /
 //                                       SAMPLE_RATE_HZ) << 18)
-    
-	const vector<double> freq_Hz = {100.0e3, 110.0e3, 120.0e3};
-    vector<unsigned> phase_inc_values(1+freq_Hz.size()/2, 0);
+
+    vector<unsigned> phase_inc_values(freq_Hz.size(), 0);
     for(unsigned i=0; i<freq_Hz.size(); i++) {
-        double phase_inc_d = 65536.0 * 65536.0 * freq_Hz[i] / SAMPLE_RATE_HZ;
-        unsigned phase_inc = 0.5 + phase_inc_d;
-        double freq_Hz_true = phase_inc * SAMPLE_RATE_HZ / 65536.0 / 65536.0;
-        
-        printf("LO %d, target = %.3f Hz, true = %.6f Hz, phase delta = %.3f\n", i, freq_Hz[i], freq_Hz_true, phase_inc_d);
-        phase_inc_values[i] = phase_inc;
+        phase_inc_values[i] = set_frequency(map_base, i, freq_Hz[i]);
     }
     
     //phase0 is reference
@@ -269,6 +285,15 @@ int main(int argc, char *argv[]) {
                 data_buffer[n * (num_channels + 1) + (i + 1)] = raw;
             else
                 data_buffer[n * (num_channels + 1) + (i + 1)] = raw & 0xffff;
+
+            if(ch == reference_ch) {
+                double ratio = reg/(double)phase_inc_values[0];
+                printf(" Set LO frequencies based on reference channel %d ratio %.6f\n", reference_ch, ratio);
+                // set frequencies for other channels
+                for(size_t j=1; j<freq_Hz.size(); j++) {
+                    set_frequency(map_base, j, freq_Hz[j] * ratio);
+                }
+            }
         }
 
         nsamp = data_buffer[n * (num_channels + 1) + 1];
@@ -350,7 +375,7 @@ int main(int argc, char *argv[]) {
                     if (width[ch] == 4 && x & 0x80000000)
                         x -= 0x100000000;
                 }
-                csvfile << "," << x * (showscaled ? scale[ch] : 1) + (showscaled && channel_names[ch] == "f0" ? -1e5 : 0);
+                csvfile << "," << x * (showscaled ? scale[ch] : 1);
             }
             csvfile << std::endl;
         }

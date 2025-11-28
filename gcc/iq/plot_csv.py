@@ -61,11 +61,17 @@ def plot_csv(filename, hist_raw=False):
     for i in other_indices:
         print(f"Plotting channel {i}: {header[i]}")
         lw = 1
+        offset = 0
+        lbl = header[i]
         if 'f0' in header[i].lower() or 'phase' in header[i].lower():
             lw = 4
+
+        if 'f0' in header[i].lower():
+            offset = np.mean(arr[:, i])
+            lbl += f" (offset {offset:.2f})"
             
-        axs[0].plot(time, arr[:, i], label=header[i], linewidth=lw)
-        axs[0].scatter(time, arr[:, i], s=12)
+        axs[0].plot(time, arr[:, i] - offset, label=lbl, linewidth=lw)
+        axs[0].scatter(time, arr[:, i] - offset, s=12)
     if has_avgmix:
         phase = np.arctan2(arr[:, idx_Q], arr[:, idx_I])
         axs[0].plot(time, phase, label="atan2(avgmixQ, avgmixI)", color='purple', linewidth=2)
