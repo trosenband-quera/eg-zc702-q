@@ -165,6 +165,9 @@ module iq_demodulator #(
           mixerI[ch] <= 0;
           mixerQ[ch] <= 0;
         end else begin
+          if (ch > 0)
+            lo_dds_phase_inc_reg[ch] <= lo_dds_phase_inc[((ch+1)*LO_PHASE_WIDTH-1):(ch*LO_PHASE_WIDTH)];
+
           if (xadc_ready == 1 && prev_xadc_ready == 0) begin
             dds_phase_acc_sin[ch] <= dds_phase_acc_sin[ch] + lo_dds_phase_inc_reg[ch];
             dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] + lo_dds_phase_inc_reg[ch];

@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
 
     // Channel names and offsets
     const unsigned num_initial_channels = 3; // NSAMP, VP-VN, GOOD
-    const unsigned num_demod_channels = 3;
+    const unsigned num_demod_channels = 4;
     const unsigned num_debug_channels = 9;
     unsigned num_channels = num_initial_channels + num_demod_channels + num_debug_channels; // total channels: NSAMP, VP-VN, GOOD, PHASE0..N, mixI, mixQ, avgmixI, avgmixQ, LO_I, LO_Q
     std::vector<unsigned> channels_to_read(num_channels);

@@ -37,6 +37,7 @@ module iq_demodulator_v1_0 #(
 );
   // Instantiation of Axi Bus Interface S00_AXI
   iq_demodulator_v1_0_S00_AXI #(
+      .NUM_DEMOD_CHANNELS(4),
       .C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH),
       .C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)
   ) iq_demodulator_v1_0_S00_AXI_inst (
