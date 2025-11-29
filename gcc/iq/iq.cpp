@@ -20,6 +20,7 @@
 #include <tuple>
 #include <string>
 #include <cmath>
+#include <iomanip>
 
 using namespace std;
 
@@ -56,13 +57,15 @@ map<string, string> read_config(const string& config_file) {
     return config;
 }
 
-unsigned set_frequency(volatile void *map_base, unsigned channel, double freq_Hz) {
+unsigned set_frequency(volatile void *map_base, unsigned channel, double freq_Hz, bool verbose=false) {
     const double SAMPLE_RATE_HZ = 1e6 * 25 / 26.0;
     double phase_inc_d = 65536.0 * 65536.0 * freq_Hz / SAMPLE_RATE_HZ;
     unsigned phase_inc = 0.5 + phase_inc_d;
     double freq_Hz_true = phase_inc * SAMPLE_RATE_HZ / 65536.0 / 65536.0;
 
-    printf("LO %d, target = %.3f Hz, true = %.6f Hz, phase delta = %.3f\n", channel, freq_Hz, freq_Hz_true, phase_inc_d);
+    if (verbose) {
+        printf("LO %d, target = %.3f Hz, true = %.6f Hz, phase delta = %.3f\n", channel, freq_Hz, freq_Hz_true, phase_inc_d);
+    }
 
     set_register(map_base, 4 + channel, phase_inc);
     return phase_inc;
@@ -92,7 +95,7 @@ int main(int argc, char *argv[]) {
     unsigned kp = config.count("kp") ? std::stoul(config["kp"]) : 0;
     unsigned ki = config.count("ki") ? std::stoul(config["ki"]) : 0;
     unsigned signal_good_threshold = config.count("signal_good_threshold") ? std::stoul(config["signal_good_threshold"]) : 0;
-    std::string channel_list_str = config.count("channel_list") ? config["channel_list"] : "";
+    std::string channel_list_str = config.count("channels") ? config["channels"] : "";
     std::string freqs_str = config.count("freqs") ? config["freqs"] : "100000,112500";
     std::vector<double> freq_Hz;
     {
@@ -128,7 +131,7 @@ int main(int argc, char *argv[]) {
     vector<unsigned> channel_offsets(num_channels);
 	vector<unsigned>  width = {4, 2, 2}; // initial width for NSAMP and VP-VN
     const unsigned read_offset = 0x20; // Base offset for reading channels
-    vector<double> scale = {1, 0, 1}; // initial scale for NSAMP and VP-VN
+    vector<double> scale = {1, 0, 1.0 / (1 << num_demod_channels)}; // initial scale for NSAMP and VP-VN
     vector<unsigned> bipolar = {0, 1, 0}; // initial bipolar for NSAMP and VP-VN
 
     unsigned channel_offset = (read_offset)*4;
@@ -224,7 +227,7 @@ int main(int argc, char *argv[]) {
 
     vector<unsigned> phase_inc_values(freq_Hz.size(), 0);
     for(unsigned i=0; i<freq_Hz.size(); i++) {
-        phase_inc_values[i] = set_frequency(map_base, i, freq_Hz[i]);
+        phase_inc_values[i] = set_frequency(map_base, i, freq_Hz[i], true);
     }
     
     //phase0 is reference
@@ -288,7 +291,7 @@ int main(int argc, char *argv[]) {
 
             if(ch == reference_ch) {
                 double ratio = reg/(double)phase_inc_values[0];
-                printf(" Set LO frequencies based on reference channel %d ratio %.6f\n", reference_ch, ratio);
+                // printf(" Set LO frequencies based on reference channel %d ratio %.6f\n", reference_ch, ratio);
                 // set frequencies for other channels
                 for(size_t j=1; j<freq_Hz.size(); j++) {
                     set_frequency(map_base, j, freq_Hz[j] * ratio);
@@ -355,6 +358,9 @@ int main(int argc, char *argv[]) {
             printf("Writing CSV output to %s\n", csv_filename.c_str());
         }
 
+        // Set higher precision for floating-point output
+        csvfile << std::fixed << std::setprecision(3);
+
         // Write CSV header
         csvfile << "time_us";
         for (auto ch : channels_to_read) {
@@ -375,7 +381,8 @@ int main(int argc, char *argv[]) {
                     if (width[ch] == 4 && x & 0x80000000)
                         x -= 0x100000000;
                 }
-                csvfile << "," << x * (showscaled ? scale[ch] : 1);
+                double value = x * (showscaled ? scale[ch] : 1);
+                csvfile << "," << value;
             }
             csvfile << std::endl;
         }

@@ -55,7 +55,15 @@ def plot_csv(filename, hist_raw=False):
         return
 
     # Plot in subplots: non-mixer, mixer
-    fig, axs = plt.subplots(2, 1, sharex=True, figsize=(10, 8))
+    nplot = 2
+    if not mixer_indices:
+        nplot = 1
+
+    fig, axs = plt.subplots(nplot, 1, sharex=True, figsize=(10, 8))
+    if nplot == 1:
+        ax = axs
+    else:
+        ax = axs[0]
 
     # Non-mixer channels + atan2(avgmixQ, avgmixI) if present
     for i in other_indices:
@@ -63,34 +71,39 @@ def plot_csv(filename, hist_raw=False):
         lw = 1
         offset = 0
         lbl = header[i]
-        if 'f0' in header[i].lower() or 'phase' in header[i].lower():
+        if 'phase' in header[i].lower():
             lw = 4
 
         if 'f0' in header[i].lower():
-            offset = np.mean(arr[:, i])
+            lw=2
+            offset = arr[-1, i]
             lbl += f" (offset {offset:.2f})"
             
-        axs[0].plot(time, arr[:, i] - offset, label=lbl, linewidth=lw)
-        axs[0].scatter(time, arr[:, i] - offset, s=12)
+        ax.plot(time, arr[:, i] - offset, label=lbl, linewidth=lw)
+        ax.scatter(time, arr[:, i] - offset, s=12)
     if has_avgmix:
         phase = np.arctan2(arr[:, idx_Q], arr[:, idx_I])
-        axs[0].plot(time, phase, label="atan2(avgmixQ, avgmixI)", color='purple', linewidth=2)
-    axs[0].set_title("IQ Demodulator Data (Non-Mixer Channels & Phase)")
-    axs[0].legend()
-    axs[0].grid(True)
+        ax.plot(time, phase, label="atan2(avgmixQ, avgmixI)", color='black', linewidth=2, linestyle='--')
+    ax.set_title("IQ Demodulator Data (Non-Mixer Channels & Phase)")
+    ax.legend(loc='lower right')
+    ax.grid(True)
+    ax.set_ylim(-4, 4)
 
-    # Mixer channels
-    for i in mixer_indices:
-        y = arr[:, i]
-        if 'SIGNAL' in header[i].upper() or 'AVG' in header[i].upper():
-            axs[1].plot(time, y, label=header[i], linewidth=4)
-        else:
-            axs[1].scatter(time, y, s=6, label=header[i])
+    if nplot == 2:
+        # Second subplot for mixer channels
+        ax = axs[1]
+        # Mixer channels
+        for i in mixer_indices:
+            y = arr[:, i]
+            if 'SIGNAL' in header[i].upper() or 'AVG' in header[i].upper():
+                ax.plot(time, y, label=header[i], linewidth=4)
+            else:
+                ax.scatter(time, y, s=6, label=header[i])
 
-    axs[1].set_xlabel("time (ms)")
-    axs[1].set_title("Mixer Channels")
-    axs[1].legend()
-    axs[1].grid(True)
+        ax.set_xlabel("time (ms)")
+        ax.set_title("Mixer Channels")
+        ax.legend()
+        ax.grid(True)
 
     plt.tight_layout()
     plt.show()

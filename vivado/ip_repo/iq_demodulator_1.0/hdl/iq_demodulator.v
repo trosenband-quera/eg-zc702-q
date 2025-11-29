@@ -26,9 +26,9 @@ module iq_demodulator #(
     output wire [NUM_DEBUG*32-1:0] debug,
     output reg  [NUM_CHANNELS-1:0]   signal_good
   );
-  localparam integer IQ_AVG_ORDER = 3;  // 3rd order low-pass filter for I/Q
-  localparam integer IQ_AVG_SHIFT = 8;  // 1/e filter shift (2^n samples)
-  localparam integer IQ_AVG_COEFF = 3;  // 1/e filter coefficient
+  localparam integer IQ_AVG_ORDER = 5;  // 5th order low-pass filter for I/Q
+  localparam integer IQ_AVG_SHIFT = 5;  // 1/e filter shift (2^n samples)
+  localparam integer IQ_AVG_COEFF = 1;  // 1/e filter coefficient
 
   // DDS parameters
   localparam integer LUT_SIZE = 2**LUT_WIDTH;
@@ -82,7 +82,7 @@ module iq_demodulator #(
   assign debug_array[2] = {sin_lut[addr_cos[0]], sin_lut[addr_sin[0]]};
 
   assign debug_array[3] = lo_dds_phase_inc_reg[0];
-  assign debug_array[4] = {signal_avg[0], signal_avg[2]};
+  assign debug_array[4] = {signal_avg[0][15:0], signal_avg[2][15:0]};
   
   // ADC data sampling and counting, on xadc_ready rising edge
   wire xadc_ready;
@@ -131,9 +131,10 @@ module iq_demodulator #(
         adc_sample_count <= adc_sample_count + 1;
         adc_data_reg <= adc_data;
         if (signal_good[0] != 0) begin
-          if ((adc_sample_count & 16'h3fff) == 0) begin
+          // THIS IS SLOW!!!
+          if ((adc_sample_count & 16'h0fff) == 0) begin
             // adjust LO phase inc based on phase error
-            f0 <= f00 - (unwrapped_phase0 >>> kp[7:0]) - integrator;
+            f0 <= f00 - (unwrapped_phase0 * kp[7:0]) - integrator;
             integrator <= integrator + (unwrapped_phase0 >>> ki[7:0]);
           end
         end else begin
