@@ -88,7 +88,8 @@ def plot_csv(filename, hist_raw=False):
     ax.legend(loc='lower right')
     ax.grid(True)
     ax.set_ylim(-4, 4)
-
+    ax.set_xlabel("time (ms)")
+    
     if nplot == 2:
         # Second subplot for mixer channels
         ax = axs[1]
