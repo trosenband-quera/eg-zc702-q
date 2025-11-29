@@ -87,10 +87,12 @@ int main(int argc, char *argv[]) {
     // Set default values
     int reference_ch = config.count("ref") ? std::stoi(config["ref"]) : -1;
     unsigned nmax = config.count("nmax") ? std::stoul(config["nmax"]) : 10;
+    double t0_ms = config.count("t0_ms") ? std::stod(config["t0_ms"]) : 0.0;
+    double tmax_ms = config.count("tmax_ms") ? std::stod(config["tmax_ms"]) : 1.0;
     int showraw = config.count("showraw") ? std::stoi(config["showraw"]) : 1;
     int showscaled = config.count("showscaled") ? std::stoi(config["showscaled"]) : 0;
     int quiet = config.count("quiet") ? std::stoi(config["quiet"]) : 0;
-    unsigned ms = config.count("ms") ? std::stoul(config["ms"]) : 5;
+    double ms = config.count("ms") ? std::stod(config["ms"]) : 5;
     std::string csv_filename = config.count("csv_filename") ? config["csv_filename"] : "";
     unsigned kp = config.count("kp") ? std::stoul(config["kp"]) : 0;
     unsigned ki = config.count("ki") ? std::stoul(config["ki"]) : 0;
@@ -131,7 +133,7 @@ int main(int argc, char *argv[]) {
     vector<unsigned> channel_offsets(num_channels);
 	vector<unsigned>  width = {4, 2, 2}; // initial width for NSAMP and VP-VN
     const unsigned read_offset = 0x20; // Base offset for reading channels
-    vector<double> scale = {1, 0, 1.0 / (1 << num_demod_channels)}; // initial scale for NSAMP and VP-VN
+    vector<double> scale = {1, 0, 1.0 / ((1 << num_demod_channels) - 1)}; // initial scale for NSAMP and VP-VN
     vector<unsigned> bipolar = {0, 1, 0}; // initial bipolar for NSAMP and VP-VN
 
     unsigned channel_offset = (read_offset)*4;
@@ -216,7 +218,7 @@ int main(int argc, char *argv[]) {
 
     int sleepval = ms * 1000;
     long us0 = 0;
-	long us;
+	long us = 0;
 	
     struct timespec start, stop;
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -246,6 +248,17 @@ int main(int argc, char *argv[]) {
         set_register(map_base, 4 + i, phase_inc_values[i]);
     }
 	
+    printf("  offset address:");
+    for(auto ch : channels_to_read) {
+        printf(width[ch] == 4 ? "     0x%04X" : "   0x%04X", channel_offsets[ch]);
+    }
+    printf("\n   Channel names:");
+    for(auto ch : channels_to_read) {
+        printf(width[ch] == 4 ? " %10s" : " %8s", channel_names[ch].c_str());
+    }
+    
+    printf("\n");
+    
     // reset IQ demodulator
     set_register(map_base, 0, 0x1); // assert reset
     usleep(1000);
@@ -258,22 +271,14 @@ int main(int argc, char *argv[]) {
     
     // Allocate a 1D array: data_buffer[sample * (num_channels + 1) + channel]
     unsigned *data_buffer = new unsigned[max_samples * (num_channels + 1)];
-    while (n < nmax) {
-        if(n % nmax == 0) {
-            printf("  offset address:");
-            for(auto ch : channels_to_read) {
-                printf(width[ch] == 4 ? "     0x%04X" : "   0x%04X", channel_offsets[ch]);
-            }
-            printf("\n   Channel names:");
-            for(auto ch : channels_to_read) {
-                printf(width[ch] == 4 ? " %10s" : " %8s", channel_names[ch].c_str());
-            }
-            
-            printf("\n");
-        }
-
+    while (n < nmax && us < tmax_ms * 1000) {
         clock_gettime(CLOCK_MONOTONIC, &stop);
         us = (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec) / 1000;
+
+        if(us < t0_ms * 1000) {
+            usleep(10);
+            continue;
+        }   
 
         // Store time and raw values in the buffer
         data_buffer[n * (num_channels + 1) + 0] = us;

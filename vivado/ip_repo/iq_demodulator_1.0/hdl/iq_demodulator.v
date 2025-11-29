@@ -132,7 +132,7 @@ module iq_demodulator #(
         adc_data_reg <= adc_data;
         if (signal_good[0] != 0) begin
           // THIS IS SLOW!!!
-          if ((adc_sample_count & 16'h0fff) == 0) begin
+          if ((adc_sample_count & 1) == 0) begin
             // adjust LO phase inc based on phase error
             f0 <= f00 - (unwrapped_phase0 * kp[7:0]) - integrator;
             integrator <= integrator + (unwrapped_phase0 >>> ki[7:0]);

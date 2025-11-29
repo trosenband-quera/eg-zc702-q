@@ -19,7 +19,7 @@ def plot_csv(filename, hist_raw=False):
     print(f"Plotting data from {filename} with shape {arr.shape}")
 
     # Identify mixer channels (names containing 'MIX' or 'MIXER')
-    mixer_indices = [i for i, h in enumerate(header) if 'MIX' in h.upper() or 'MIXER' in h.upper() or 'signal' in h.lower()]
+    mixer_indices = [i for i, h in enumerate(header) if 'MIX' in h.upper() or 'MIXER' in h.upper() or 'signal' in h.lower() or 'f0' in h.lower()]
     skip_indices  = [i for i, h in enumerate(header) if 'NSAMP' in h.upper()]
     other_indices = [i for i in range(1, arr.shape[1]) if i not in mixer_indices and i not in skip_indices]
 
@@ -72,40 +72,41 @@ def plot_csv(filename, hist_raw=False):
         offset = 0
         lbl = header[i]
         if 'phase' in header[i].lower():
-            lw = 4
-
-        if 'f0' in header[i].lower():
-            lw=2
-            offset = arr[-1, i]
-            lbl += f" (offset {offset:.2f})"
+            lw = 2
+            lbl += " (rad)"
             
         ax.plot(time, arr[:, i] - offset, label=lbl, linewidth=lw)
-        ax.scatter(time, arr[:, i] - offset, s=12)
+        # ax.scatter(time, arr[:, i] - offset, s=12)
     if has_avgmix:
         phase = np.arctan2(arr[:, idx_Q], arr[:, idx_I])
         ax.plot(time, phase, label="atan2(avgmixQ, avgmixI)", color='black', linewidth=2, linestyle='--')
-    ax.set_title("IQ Demodulator Data (Non-Mixer Channels & Phase)")
+    ax.set_title(f"IQ Demodulator Data (Phase, etc) -- {time.size} samples")
     ax.legend(loc='lower right')
     ax.grid(True)
-    ax.set_ylim(-4, 4)
     ax.set_xlabel("time (ms)")
-    
+
     if nplot == 2:
         # Second subplot for mixer channels
         ax = axs[1]
+
         # Mixer channels
         for i in mixer_indices:
-            y = arr[:, i]
-            if 'SIGNAL' in header[i].upper() or 'AVG' in header[i].upper():
-                ax.plot(time, y, label=header[i], linewidth=4)
-            else:
-                ax.scatter(time, y, s=6, label=header[i])
+            offset = 0
+            lbl = header[i]
+
+            if 'f0' in header[i].lower():
+                offset = np.median(arr[:, i])
+                lbl += f" [Hz] (offset {offset:.2f})"
+            y = arr[:, i]-offset
+
+            ax.plot(time, y, label=lbl, linewidth=1)
+            ax.scatter(time, y, s=6)
 
         ax.set_xlabel("time (ms)")
-        ax.set_title("Mixer Channels")
+        ax.set_title("Other Channels")
         ax.legend()
         ax.grid(True)
-
+        ax.set_ylim(-10, 10)
     plt.tight_layout()
     plt.show()
 
