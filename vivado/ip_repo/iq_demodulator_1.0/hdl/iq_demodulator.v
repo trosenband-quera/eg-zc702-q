@@ -27,7 +27,7 @@ module iq_demodulator #(
     output reg  [NUM_CHANNELS-1:0]   signal_good
   );
   localparam integer IQ_AVG_ORDER = 5;  // 5th order low-pass filter for I/Q
-  localparam integer IQ_AVG_SHIFT = 5;  // 1/e filter shift (2^n samples)
+  localparam integer IQ_AVG_SHIFT = 7;  // 1/e filter shift (2^n samples)
   localparam integer IQ_AVG_COEFF = 1;  // 1/e filter coefficient
 
   // DDS parameters

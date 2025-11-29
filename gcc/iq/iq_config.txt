@@ -1,12 +1,12 @@
 quiet=1
 csv_filename=1.csv
 nmax=10000
-t0_ms=9
-tmax_ms=10
+t0_ms=0
+tmax_ms=50
 ms=0
 showscaled=1
-kp=150
-ki=2
+kp=20
+ki=9
 signal_good_threshold=2000
 freqs=100000,110000,120000,130000
 ref=13
