@@ -29,8 +29,8 @@ LDFLAGS := -static -lm -lgcc
 # First target is the default so name it as such.
 default: $(SELF)
 
-serial_comm: serial_comm.cpp
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) serial_comm.cpp -o serial_comm
+serial_comm: serial_comm.cpp Novatech409c.cpp
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) serial_comm.cpp Novatech409c.cpp -o serial_comm
 
 udpsend: udpsend.cpp
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) udpsend.cpp -o udpsend

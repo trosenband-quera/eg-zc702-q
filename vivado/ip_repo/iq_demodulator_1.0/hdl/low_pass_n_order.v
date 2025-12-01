@@ -1,6 +1,7 @@
 // pipelined stack of N 1st order low-pass filters
 // each stage is like an RC filter with time constant set by COEFF and SHIFT
 // the 1/e time is (2^SHIFT)/COEFF clock cycles
+// group delay is N * (2^SHIFT)/COEFF cycles
 // e.g. if clk is 1 MHz, COEFF=8, SHIFT=7, then time constant is 16 us 
 //      but instead just use COEFF=1, SHIFT=4 to avoid multipliers
 // thanks, chatGPT
@@ -8,8 +9,8 @@
 `timescale 1 ns / 1 ps
 
 module low_pass_n_order #(
-    parameter integer ORDER = 3,
-    parameter integer COEFF = 10,  // Coefficient for each stage
+    parameter integer ORDER = 5,
+    parameter integer COEFF = 1,  // Coefficient for each stage
     parameter integer SHIFT = 7,   // Right shift amount for scaling
     parameter integer WIDTH = 32    // Width of the input and output signals
 ) (
