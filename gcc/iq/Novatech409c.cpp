@@ -57,8 +57,11 @@ void Novatech409c::configurePort(int baudrate) {
 void Novatech409c::echo(bool enable) {
     char buf[16];
     snprintf(buf, sizeof(buf), "E %c", enable ? 'e' : 'd');
-    writeCommand(buf);
-    readResponse(10);
+    writeCommand(buf, 10);
+}
+
+void Novatech409c::query() {
+    writeCommand("Q", 1000, true);
 }
 
 void Novatech409c::setPhaseDeg(unsigned channel, double phase) {

@@ -45,7 +45,7 @@ serial: serial_comm
 	scp serial_comm zc702:~/
 	ssh zc702 -C "chmod u+x ./serial_comm && ./serial_comm -d /dev/ttyUSB0 -m q -B"
 
-$(SELF): $(DEPS)
+$(SELF): $(DEPS) Novatech409c.cpp
 
 .PHONY : bit
 bit:

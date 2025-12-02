@@ -19,7 +19,8 @@ def plot_csv(filename, hist_raw=False):
     print(f"Plotting data from {filename} with shape {arr.shape}")
 
     # Identify mixer channels (names containing 'MIX' or 'MIXER')
-    mixer_indices = [i for i, h in enumerate(header) if 'MIX' in h.upper() or 'MIXER' in h.upper() or 'signal' in h.lower() or 'f0' in h.lower()]
+    mixer_indices = [i for i, h in enumerate(header) if 'MIX' in h.upper() or 'MIXER' in h.upper() or 
+                     'signal' in h.lower() or 'f' in h.lower()[0:1]]
     skip_indices  = [i for i, h in enumerate(header) if 'NSAMP' in h.upper()]
     other_indices = [i for i in range(1, arr.shape[1]) if i not in mixer_indices and i not in skip_indices]
 
@@ -71,15 +72,21 @@ def plot_csv(filename, hist_raw=False):
         lw = 1
         offset = 0
         lbl = header[i]
+        scatter = False
+        
         if 'phase' in header[i].lower():
             lw = 2
             lbl += " (rad)"
-            
+            scatter = True
+
         ax.plot(time, arr[:, i] - offset, label=lbl, linewidth=lw)
-        # ax.scatter(time, arr[:, i] - offset, s=12)
+        if scatter:
+            ax.scatter(time, arr[:, i] - offset, s=12)
     if has_avgmix:
         phase = np.arctan2(arr[:, idx_Q], arr[:, idx_I])
         ax.plot(time, phase, label="atan2(avgmixQ, avgmixI)", color='black', linewidth=2, linestyle='--')
+        ax.scatter(time, phase, s=6)
+
     ax.set_title(f"IQ Demodulator Data (Phase, etc) -- {time.size} samples")
     ax.legend(loc='lower right')
     ax.grid(True)
@@ -94,9 +101,10 @@ def plot_csv(filename, hist_raw=False):
             offset = 0
             lbl = header[i]
 
-            if 'f0' in header[i].lower():
+            if 'f' in header[i].lower()[0:1]:
                 offset = np.median(arr[:, i])
                 lbl += f" [Hz] (offset {offset:.2f})"
+                
             y = arr[:, i]-offset
 
             ax.plot(time, y, label=lbl, linewidth=1)
@@ -106,7 +114,7 @@ def plot_csv(filename, hist_raw=False):
         ax.set_title("Other Channels")
         ax.legend()
         ax.grid(True)
-        ax.set_ylim(-10, 10)
+        # ax.set_ylim(-10, 10)
     plt.tight_layout()
     plt.show()
 

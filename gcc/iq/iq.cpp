@@ -22,6 +22,8 @@
 #include <cmath>
 #include <iomanip>
 
+#include "Novatech409c.h"
+
 using namespace std;
 
 void set_register(volatile void *map_base, unsigned num, unsigned value) {
@@ -93,19 +95,39 @@ int main(int argc, char *argv[]) {
     int showscaled = config.count("showscaled") ? std::stoi(config["showscaled"]) : 0;
     int quiet = config.count("quiet") ? std::stoi(config["quiet"]) : 0;
     double ms = config.count("ms") ? std::stod(config["ms"]) : 5;
+    double ms0 = config.count("ms0") ? std::stod(config["ms0"]) : 0.0;
     std::string csv_filename = config.count("csv_filename") ? config["csv_filename"] : "";
     unsigned kp = config.count("kp") ? std::stoul(config["kp"]) : 0;
     unsigned ki = config.count("ki") ? std::stoul(config["ki"]) : 0;
     unsigned signal_good_threshold = config.count("signal_good_threshold") ? std::stoul(config["signal_good_threshold"]) : 0;
     std::string channel_list_str = config.count("channels") ? config["channels"] : "";
     std::string freqs_str = config.count("freqs") ? config["freqs"] : "100000,112500";
+    std::string dds_device = config.count("dds_device") ? config["dds_device"] : "";
+    double kp_dds = config.count("kp_dds") ? std::stod(config["kp_dds"]) : 0.0;
+    double ki_dds = config.count("ki_dds") ? std::stod(config["ki_dds"]) : 0.0;
+    double dds_update_interval_ms = config.count("dds_update_interval_ms") ? 
+                std::stod(config["dds_update_interval_ms"]) : 10.0;
+    Novatech409c* dds = nullptr;
+    if(!dds_device.empty()) {
+        dds = new Novatech409c(dds_device, 115200);
+    }
+
     std::vector<double> freq_Hz;
     {
         stringstream ss(freqs_str);
         string item;
         while (getline(ss, item, ',')) {
             freq_Hz.push_back(std::stod(item));
+            if(dds) {
+                dds->setFrequencyHz(freq_Hz.size() - 1, freq_Hz.back());
+            }
         }
+    }
+    std::vector<double> integrator_error(freq_Hz.size(), 0.0);
+    std::vector<double> f = freq_Hz;
+
+    if(dds) {
+        dds->query();
     }
 
     // Channel names and offsets
@@ -204,6 +226,8 @@ int main(int argc, char *argv[]) {
 
 	// get scale from width if 0
     num_channels = channels_to_read.size();
+    vector<int> phase_channels(4, -1);
+
     for (size_t i = 0; i < num_channels; ++i) {
         int ch = channels_to_read[i];
         if (0 == scale[ch]) {
@@ -211,7 +235,14 @@ int main(int argc, char *argv[]) {
             for(unsigned j=0; j<width[ch]; j++)
                 scale[ch] /= 256.0;
         }
-        printf("Channel[%2d] %s (index %d): scale = %g\n", ch, channel_names[ch].c_str(), ch, scale[ch]);
+        printf("Channel[%2d] %s (index %d): scale = %g\n", ch, channel_names[ch].c_str(), i, scale[ch]);
+
+        for(int pc=0; pc<4; pc++) {
+            if(channel_names[ch] == "PHASE" + to_string(pc)) {
+                phase_channels[pc] = ch;
+                printf("  PHASE%d channel found: %d\n", pc, ch);
+            }
+        }
     }
 	
     unsigned n = 0;
@@ -264,13 +295,16 @@ int main(int argc, char *argv[]) {
     usleep(1000);
     set_register(map_base, 0, 0x0); // deassert reset
 
-    unsigned nsamp0, nsamp;
+    unsigned nsamp0 = 0;
+    unsigned nsamp = 0;
+    unsigned num_extra_channels = f.size(); // time_us, f1,...
     
+    unsigned us_next_dds_update = 10000;
     // Replace vector-based buffer with a one-dimensional dynamically allocated array
     unsigned max_samples = nmax;
     
     // Allocate a 1D array: data_buffer[sample * (num_channels + 1) + channel]
-    unsigned *data_buffer = new unsigned[max_samples * (num_channels + 1)];
+    unsigned *data_buffer = new unsigned[max_samples * (num_channels + num_extra_channels)];
     while (n < nmax && us < tmax_ms * 1000) {
         clock_gettime(CLOCK_MONOTONIC, &stop);
         us = (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec) / 1000;
@@ -280,19 +314,21 @@ int main(int argc, char *argv[]) {
             continue;
         }   
 
+        bool updated_dds = false;
+
         // Store time and raw values in the buffer
-        data_buffer[n * (num_channels + 1) + 0] = us;
+        data_buffer[n * (num_channels + num_extra_channels) + 0] = us;
         for (size_t i = 0; i < num_channels; ++i) {
-            unsigned ch = channels_to_read[i];
+            int ch = channels_to_read[i];
             reg = get_register(map_base, (channel_offsets[ch] & 0xfffc));
             if(channel_offsets[ch] % 4 == 2)
                 reg = reg >> 16;
 
             unsigned int raw = reg;
             if(width[ch] == 4)
-                data_buffer[n * (num_channels + 1) + (i + 1)] = raw;
+                data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] = raw;
             else
-                data_buffer[n * (num_channels + 1) + (i + 1)] = raw & 0xffff;
+                data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] = raw & 0xffff;
 
             if(ch == reference_ch) {
                 double ratio = reg/(double)phase_inc_values[0];
@@ -301,10 +337,35 @@ int main(int argc, char *argv[]) {
                 for(size_t j=1; j<freq_Hz.size(); j++) {
                     set_frequency(map_base, j, freq_Hz[j] * ratio);
                 }
+            } else if(kp_dds != 0 && us > us_next_dds_update) {
+                updated_dds = true;
+                for(int pc=1; pc<4; pc++) {
+                    if(ch == phase_channels[pc]) {
+                        long x = raw;
+                        if (x & 0x80000000)
+                            x -= 0x100000000;
+                        double error_rad = x * scale[ch];
+                        integrator_error[pc] += error_rad;
+                        double correction = kp_dds * error_rad + ki_dds * integrator_error[pc];
+                        f[pc] = freq_Hz[pc] - correction;
+                        
+                        dds->setFrequencyHz(pc, f[pc]);
+                        
+                        // printf(" DDS update PC=%d, raw=%ld, error=%.6f rad, f=%.3f Hz\n", pc, x, error_rad, f[pc]);
+                        // simple PI controller
+                    }
+                }
             }
+            for(size_t j=1; j<f.size(); j++)
+                data_buffer[n * (num_channels + num_extra_channels) + num_channels + j] = 
+                    f[j] * 1000; // store f in mHz
         }
 
-        nsamp = data_buffer[n * (num_channels + 1) + 1];
+        if(updated_dds) {
+            us_next_dds_update += dds_update_interval_ms * 1000;
+        }
+
+        nsamp = data_buffer[n * (num_channels + num_extra_channels) + 1];
 
         if(n == 0) {
 			us0 = us;
@@ -371,13 +432,21 @@ int main(int argc, char *argv[]) {
         for (auto ch : channels_to_read) {
             csvfile << "," << channel_names[ch];
         }
+        for (size_t j = 1; j < f.size(); ++j) {
+            csvfile << ",f" << j;
+        }
+        //
         csvfile << std::endl;
 
         // Write buffered data
         for (unsigned i = 0; i < n; ++i) {
-            csvfile << data_buffer[i * (num_channels + 1) + 0];
+            unsigned long time_us = data_buffer[i * (num_channels + num_extra_channels) + 0];
+            if(time_us < ms0 * 1000)
+                continue;
+
+            csvfile << time_us;
             for (size_t j = 0; j < num_channels; ++j) {
-                long x = data_buffer[i * (num_channels + 1) + (j + 1)];
+                long x = data_buffer[i * (num_channels + num_extra_channels) + (j + 1)];
                 unsigned ch = channels_to_read[j];
                 // If the channel is bipolar, convert to signed integer
                 if (bipolar[ch]) {
@@ -388,6 +457,10 @@ int main(int argc, char *argv[]) {
                 }
                 double value = x * (showscaled ? scale[ch] : 1);
                 csvfile << "," << value;
+            }
+            // Write extra channels
+            for (unsigned j = 1; j < num_extra_channels; ++j) {
+                csvfile << "," << data_buffer[i * (num_channels + num_extra_channels) + num_channels + j] * 0.001; // convert mHz back to Hz
             }
             csvfile << std::endl;
         }

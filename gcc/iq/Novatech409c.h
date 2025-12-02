@@ -15,7 +15,8 @@ public:
     void echo(bool enable);
     void makeTableRow(int row, int ch, double freq, float phase=0,
                       float A=1, int dwell=100);
-                      
+    void query();
+    
     int writeCommand(const std::string& cmd, size_t length=0, bool verbose=false);
     int readResponse(size_t maxlength, bool verbose=false);
     void close();
