@@ -15,7 +15,7 @@ LD := $(CROSS_COMPILE)-ld
 
 # More warnings.
 CFLAGS := -Wall -Wextra
-CXXFLAGS := -Wall -Wextra -Wno-psabi  -O2 #-g -O1 -gdwarf-4
+CXXFLAGS := -Wall -Wextra -Wno-psabi  -O2 -std=c++17#-g -O1 -gdwarf-4
 
 # The minimal linux does not have shared libraries to dynamically link to so
 # executable must be statically linked.
@@ -29,8 +29,8 @@ LDFLAGS := -static -lm -lgcc
 # First target is the default so name it as such.
 default: $(SELF)
 
-serial_comm: serial_comm.cpp Novatech409c.cpp
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) serial_comm.cpp Novatech409c.cpp -o serial_comm
+serial_comm: serial_comm.cpp Novatech409c2.cpp
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) serial_comm.cpp Novatech409c2.cpp -o serial_comm
 
 udpsend: udpsend.cpp
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) udpsend.cpp -o udpsend

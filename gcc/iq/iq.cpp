@@ -49,6 +49,19 @@ map<string, string> read_config(const string& config_file) {
     }
     string line;
     while (getline(infile, line)) {
+        // Remove comments and trim whitespace
+        size_t comment_pos = line.find('#');
+        if (comment_pos != string::npos) {
+            line = line.substr(0, comment_pos);
+        }
+        // Trim whitespace from both ends
+        size_t first = line.find_first_not_of(" \t");
+        size_t last = line.find_last_not_of(" \t");
+        if (first == string::npos || last == string::npos) {
+            continue; // Skip empty or whitespace-only lines
+        }
+        line = line.substr(first, last - first + 1);
+
         size_t eq = line.find('=');
         if (eq != string::npos) {
             string key = line.substr(0, eq);
@@ -335,9 +348,10 @@ int main(int argc, char *argv[]) {
                 // printf(" Set LO frequencies based on reference channel %d ratio %.6f\n", reference_ch, ratio);
                 // set frequencies for other channels
                 for(size_t j=1; j<freq_Hz.size(); j++) {
-                    set_frequency(map_base, j, freq_Hz[j] * ratio);
+                    f[j] = freq_Hz[j] * ratio;
+                    set_frequency(map_base, j, f[j]);
                 }
-            } else if(kp_dds != 0 && us > us_next_dds_update) {
+            } else if(dds && kp_dds != 0 && us > us_next_dds_update) {
                 updated_dds = true;
                 for(int pc=1; pc<4; pc++) {
                     if(ch == phase_channels[pc]) {
