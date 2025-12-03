@@ -16,8 +16,10 @@ def plot_csv(filename, hist_raw=False):
     # Convert to numpy array for efficient slicing
     arr = np.array(data, dtype=float)
     time = arr[:, 0] / 1e3  # Convert us to ms for x-axis
+    dt = np.mean(np.diff(arr[:, 0]))  # Average time step in us
+    plotPSD = dt <= 10  # Plot PSD if time step is 10us
     print(f"Plotting data from {filename} with shape {arr.shape}")
-
+    print(f"Average time step: {dt:.2f} us, Plot PSD: {plotPSD}")
     # Identify mixer channels (names containing 'MIX' or 'MIXER')
     mixer_indices = [i for i, h in enumerate(header) if 'MIX' in h.upper() or 'MIXER' in h.upper() or 
                      'signal' in h.lower() or 'f' in h.lower()[0:1]]
@@ -64,20 +66,22 @@ def plot_csv(filename, hist_raw=False):
 
     # Plot in subplots: non-mixer, mixer
     nplot = 2
-    if not mixer_indices:
-        nplot = 1
 
-    if has_phase0:
-        nplot += 1
+    if plotPSD:
+        fig, axs = plt.subplots(2, 2, sharex=False, figsize=(10, 8))
+        gs = axs[1, 1].get_gridspec()
+        # remove the underlying Axes
+        for ax in axs[0:, -1]:
+            ax.remove()
+        axbig = fig.add_subplot(gs[0:, -1])
+        ax0 = axs[0, 0]
+        ax1 = axs[1, 0]
+    else:
+        fig, axs = plt.subplots(nplot, 1, sharex=False, figsize=(10, 4*nplot))
+        ax0 = axs[0]
+        ax1 = axs[1] if nplot > 1 else None
 
-    fig, axs = plt.subplots(2, 2, sharex=False, figsize=(10, 8))
-    gs = axs[1, 1].get_gridspec()
-    # remove the underlying Axes
-    for ax in axs[0:, -1]:
-        ax.remove()
-    axbig = fig.add_subplot(gs[0:, -1])
-
-    ax = axs[0, 0]
+    ax = ax0
     # Non-mixer channels + atan2(avgmixQ, avgmixI) if present
     for i in other_indices:
         print(f"Plotting channel {i}: {header[i]}")
@@ -109,7 +113,7 @@ def plot_csv(filename, hist_raw=False):
 
     if mixer_indices:
         # Second subplot for mixer channels
-        ax = axs[1, 0]
+        ax = ax1
 
         # Mixer channels
         for i in mixer_indices:
@@ -133,7 +137,7 @@ def plot_csv(filename, hist_raw=False):
         iax += 1
 
     # Interpolate phase0 onto a 1us grid and plot phase noise power spectrum
-    if has_phase0:
+    if plotPSD:
         ax = axbig
         plotphase = False
         lbl = 'Phase Noise'

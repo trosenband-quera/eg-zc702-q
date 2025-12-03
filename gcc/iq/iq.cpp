@@ -123,6 +123,7 @@ int main(int argc, char *argv[]) {
     Novatech409c* dds = nullptr;
     if(!dds_device.empty()) {
         dds = new Novatech409c(dds_device, 115200);
+        dds->echo(false);
     }
 
     std::vector<double> freq_Hz;
@@ -133,11 +134,14 @@ int main(int argc, char *argv[]) {
             freq_Hz.push_back(std::stod(item));
             if(dds) {
                 dds->setFrequencyHz(freq_Hz.size() - 1, freq_Hz.back());
+                dds->setPhaseDeg(freq_Hz.size() - 1, 0.0);
             }
         }
     }
     std::vector<double> integrator_error(freq_Hz.size(), 0.0);
-    std::vector<double> f = freq_Hz;
+    std::vector<double> fLO = freq_Hz; // LO frequencies
+    std::vector<double> fDDS = freq_Hz; // DDS frequencies
+    std::vector<double> phaseDDS(freq_Hz.size(), 0.0); // phase accumulator for DDS updates, for higher frequency resolution
 
     if(dds) {
         dds->query();
@@ -310,7 +314,7 @@ int main(int argc, char *argv[]) {
 
     unsigned nsamp0 = 0;
     unsigned nsamp = 0;
-    unsigned num_extra_channels = f.size(); // time_us, f1,...
+    unsigned num_extra_channels = fLO.size(); // time_us, f1,...
     
     unsigned us_next_dds_update = 10000;
     // Replace vector-based buffer with a one-dimensional dynamically allocated array
@@ -348,31 +352,46 @@ int main(int argc, char *argv[]) {
                 // printf(" Set LO frequencies based on reference channel %d ratio %.6f\n", reference_ch, ratio);
                 // set frequencies for other channels
                 for(size_t j=1; j<freq_Hz.size(); j++) {
-                    f[j] = freq_Hz[j] * ratio;
-                    set_frequency(map_base, j, f[j]);
+                    fLO[j] = freq_Hz[j] * ratio;
+                    set_frequency(map_base, j, fLO[j]);
                 }
             } else if(dds && kp_dds != 0 && us > us_next_dds_update) {
                 updated_dds = true;
                 for(int pc=1; pc<4; pc++) {
                     if(ch == phase_channels[pc]) {
+                        //printf(" DDS update channel %d at us=%ld\n", pc, us);
                         long x = raw;
                         if (x & 0x80000000)
                             x -= 0x100000000;
                         double error_rad = x * scale[ch];
                         integrator_error[pc] += error_rad;
                         double correction = kp_dds * error_rad + ki_dds * integrator_error[pc];
-                        f[pc] = freq_Hz[pc] - correction;
+                        fDDS[pc] = freq_Hz[pc] - correction;
+                        //dds->setFrequencyHz(pc, fDDS[pc]);
                         
-                        dds->setFrequencyHz(pc, f[pc]);
-                        
-                        // printf(" DDS update PC=%d, raw=%ld, error=%.6f rad, f=%.3f Hz\n", pc, x, error_rad, f[pc]);
+                        phaseDDS[pc] -= 360.0 * correction * dds_update_interval_ms * 1e-3; // phase increment adjustment
+                        phaseDDS[pc] = fmod(phaseDDS[pc], 360.0);
+                        if(phaseDDS[pc] < 0)
+                            phaseDDS[pc] += 360.0;
+
+                        dds->setPhaseDeg(pc, phaseDDS[pc]);
+
+                        //printf("[%9ld us] DDS update PC=%d, raw=%6ld, error=%.6f rad, f=%.3f Hz, phase=%7.3f deg\n", 
+                        //       us, pc, x, error_rad, fLO[pc], phaseDDS[pc]);
                         // simple PI controller
                     }
                 }
             }
-            for(size_t j=1; j<f.size(); j++)
-                data_buffer[n * (num_channels + num_extra_channels) + num_channels + j] = 
-                    f[j] * 1000; // store f in mHz
+            if(dds && kp_dds != 0) {
+                for(size_t j=1; j<fLO.size(); j++)
+                    data_buffer[n * (num_channels + num_extra_channels) + num_channels + j] = 
+                        fDDS[j] * 1000; // store f in mHz
+            }
+            else {
+                for(size_t j=1; j<fLO.size(); j++)
+                    data_buffer[n * (num_channels + num_extra_channels) + num_channels + j] = 
+                        fLO[j] * 1000; // store f in mHz
+            }
         }
 
         if(updated_dds) {
@@ -446,7 +465,7 @@ int main(int argc, char *argv[]) {
         for (auto ch : channels_to_read) {
             csvfile << "," << channel_names[ch];
         }
-        for (size_t j = 1; j < f.size(); ++j) {
+        for (size_t j = 1; j < fLO.size(); ++j) {
             csvfile << ",f" << j;
         }
         //
@@ -486,5 +505,11 @@ int main(int argc, char *argv[]) {
 
     munmap(map_base, XADC_SPAN);
     close(fd);
+
+    if(dds) {
+        dds->close();
+        delete dds;
+    }
+
     return 0;
 }

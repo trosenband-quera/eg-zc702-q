@@ -9,7 +9,7 @@
 
 #include <string>
 
-#include "Novatech409c2.h"
+#include "Novatech409c.h"
 
 using namespace std;
 Novatech409c* dds;
