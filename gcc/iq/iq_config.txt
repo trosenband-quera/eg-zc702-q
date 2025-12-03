@@ -12,8 +12,8 @@ signal_good_threshold=2000
 freqs=100000,110000,120000,130000
 ref=13
 channels=0,3,4,5,6,13
-#dds_device=/dev/ttyUSB0
-kp_dds=-8
+dds_device=/dev/ttyUSB0
+#kp_dds=-8
 ki_dds=-0.5
 dds_update_interval_ms=12
 

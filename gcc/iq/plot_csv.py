@@ -135,6 +135,8 @@ def plot_csv(filename, hist_raw=False):
     # Interpolate phase0 onto a 1us grid and plot phase noise power spectrum
     if has_phase0:
         ax = axbig
+        plotphase = False
+        lbl = 'Phase Noise'
         time_us = arr[:, 0]  # time in us
         t_min = int(np.min(time_us))
         t_max = int(np.max(time_us))
@@ -145,7 +147,8 @@ def plot_csv(filename, hist_raw=False):
             n_chunks = 10
             chunk_size = n // n_chunks
             bw = 1e6 / (n/n_chunks)  # Hz
-            print(f"Computing PSD for {header[idx]} with {n_chunks} chunks of size {chunk_size}, BW={bw} Hz")   
+            bwmax = 100e3;
+            print(f"Computing PSD for {header[idx]} with {n_chunks} chunks of size {chunk_size}, BW={bw:.2f} Hz")   
             psd_list = []
             for i in range(n_chunks):
                 start = i * chunk_size
@@ -159,13 +162,18 @@ def plot_csv(filename, hist_raw=False):
                 psd = np.abs(np.fft.rfft(chunk_detrended))**2 / len(chunk_detrended)
                 psd_list.append(psd)
             # Average PSDs
-            avg_psd = np.mean(psd_list, axis=0)/bw  # Normalize to 1/Hz
+            if plotphase:
+                avg_psd = np.mean(psd_list, axis=0)/bw  # Normalize to 1/Hz
+            else:
+                avg_psd = freq*freq*np.mean(psd_list, axis=0)/bw  # Normalize to 1/Hz
+                lbl = 'Frequency Noise'
             # Plot averaged phase noise power spectrum
             ax.semilogx(freq[1:], 10*np.log10(avg_psd[1:]), label=f'{header[idx]}')
 
+        ax.set_xlim(bw, bwmax)
         ax.set_xlabel('Frequency (Hz)')
         ax.set_ylabel('Power Spectral Density (dB/Hz)')
-        ax.set_title(f'Phase Noise PSD, {bw:.2f} Hz/point')
+        ax.set_title(f'{lbl} PSD, {bw:.2f} Hz/point')
         ax.grid(True)
         ax.legend()
         iax += 1
