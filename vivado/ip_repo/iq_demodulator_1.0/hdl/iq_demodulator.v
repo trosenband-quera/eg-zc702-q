@@ -11,7 +11,8 @@ module iq_demodulator #(
     parameter integer OUTPUT_PHASE_WIDTH = 32,
     parameter integer CORDIC_PHASE_WIDTH = 16,
     parameter integer CORDIC_WRAP_WIDTH = 8,
-    parameter integer NUM_DEBUG = 8
+    parameter integer NUM_DEBUG = 8,
+    parameter integer NUM_XADC = 1  // set to 1 to enable XADC instantiation
 ) (
     input  wire                         clk,               // 100 MHz system clock
     input  wire                         rst,
@@ -82,7 +83,8 @@ module iq_demodulator #(
   assign debug_array[2] = {sin_lut[addr_cos[0]], sin_lut[addr_sin[0]]};
 
   assign debug_array[3] = lo_dds_phase_inc_reg[0];
-  assign debug_array[4] = {signal_avg[0][15:0], signal_avg[2][15:0]};
+  assign debug_array[4] = {signal_avg[0][15:0], signal_avg[1][15:0]};
+  assign debug_array[5] = {signal_avg[2][15:0], signal_avg[3][15:0]};
   
   // ADC data sampling and counting, on xadc_ready rising edge
   wire xadc_ready;
@@ -221,40 +223,46 @@ module iq_demodulator #(
     end
   endgenerate
 
-  XADC #(  // see Xilinx UG480 for details, p. 22 and 44
-      .INIT_40(16'h0403),  // no avg, continuous sampling, bipolar, single channel VP/VN
-      .INIT_41(16'h3F0F),  // no sequencer, no alarms, no calibration
-      .INIT_42(16'h0200),  // ADCCLK = clk/4.  26 ADCCLK per conversion
-      .INIT_48(16'h0000),  // Sequencer mode
-      .INIT_49(16'h0000),
-      .INIT_4A(16'h0000),
-      .INIT_4B(16'h0000),
-      .INIT_4C(16'h0000),
-      .INIT_4D(16'h0000),
-      .INIT_4E(16'h0000),
-      .INIT_4F(16'h0000),
-      .SIM_MONITOR_FILE("voltages.txt")  // Analog Stimulus file for simulation
-  ) adc_inst (
-      .CONVST(1'b0),  // not used
-      .CONVSTCLK(1'b0),  // not used
-      .DADDR(7'h03),  // Address for channel selection (Vp/Vn), see UH480, p. 36
-      .DCLK(clk),
-      .DEN(eoc),
-      .DWE(1'b0),
-      .DI(16'h0000),
-      .DRDY(xadc_ready),
-      .DO(adc_data),
-      .RESET(rst),
-      .EOC(eoc),
-      .EOS(eos),
-      .BUSY(busy),
-      .VAUXN(16'h0000),
-      .VAUXP(16'h0000),
-      .JTAGBUSY(),  // not used
-      .JTAGLOCKED(),  // not used
-      .JTAGMODIFIED(),  // not used
-      .VP(VP),
-      .VN(VN)
-  );
+  // XADC instantiation
+  genvar k;
+  generate
+    for (k=0; k<NUM_XADC; k = k+1) begin : gen_xadc
+      XADC #(  // see Xilinx UG480 for details, p. 22 and 44
+          .INIT_40(16'h0403),  // no avg, continuous sampling, bipolar, single channel VP/VN
+          .INIT_41(16'h3F0F),  // no sequencer, no alarms, no calibration
+          .INIT_42(16'h0200),  // ADCCLK = clk/4.  26 ADCCLK per conversion
+          .INIT_48(16'h0000),  // Sequencer mode
+          .INIT_49(16'h0000),
+          .INIT_4A(16'h0000),
+          .INIT_4B(16'h0000),
+          .INIT_4C(16'h0000),
+          .INIT_4D(16'h0000),
+          .INIT_4E(16'h0000),
+          .INIT_4F(16'h0000),
+          .SIM_MONITOR_FILE("voltages.txt")  // Analog Stimulus file for simulation
+      ) adc_inst (
+          .CONVST(1'b0),  // not used
+          .CONVSTCLK(1'b0),  // not used
+          .DADDR(7'h03),  // Address for channel selection (Vp/Vn), see UH480, p. 36
+          .DCLK(clk),
+          .DEN(eoc),
+          .DWE(1'b0),
+          .DI(16'h0000),
+          .DRDY(xadc_ready),
+          .DO(adc_data),
+          .RESET(rst),
+          .EOC(eoc),
+          .EOS(eos),
+          .BUSY(busy),
+          .VAUXN(16'h0000),
+          .VAUXP(16'h0000),
+          .JTAGBUSY(),  // not used
+          .JTAGLOCKED(),  // not used
+          .JTAGMODIFIED(),  // not used
+          .VP(VP),
+          .VN(VN)
+      );
+    end
+  endgenerate
 
 endmodule

@@ -62,7 +62,7 @@ bit:
 #		LogLevel QUIET
 .PHONY : transfer
 transfer: default
-	scp $(SELF) iq_config.txt zc702:~/
+	scp $(SELF) iq_config*.txt zc702:~/
 
 # configure FPGA for Xilinx 2025.1 tools
 .PHONY: fpgacfg
@@ -88,8 +88,12 @@ run: transfer
 .PHONY : getdata
 getdata: transfer
 	ssh zc702 -C "./$(SELF) iq_config.txt"
-	scp zc702:~/1.csv .
-	python3 plot_csv.py 1.csv
+	scp zc702:~/0_1.csv .
+	python3 plot_csv.py 0_1.csv
+
+.PHONY : live
+live: transfer
+	ssh zc702 -C "./$(SELF) iq_config_live.txt"
 
 .PHONY : gethist
 gethist:

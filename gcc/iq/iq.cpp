@@ -120,6 +120,7 @@ int main(int argc, char *argv[]) {
     double ki_dds = config.count("ki_dds") ? std::stod(config["ki_dds"]) : 0.0;
     double dds_update_interval_ms = config.count("dds_update_interval_ms") ? 
                 std::stod(config["dds_update_interval_ms"]) : 10.0;
+    unsigned num_files = config.count("num_files") ? std::stoul(config["num_files"]) : 1;
     Novatech409c* dds = nullptr;
     if(!dds_device.empty()) {
         dds = new Novatech409c(dds_device, 115200);
@@ -150,7 +151,7 @@ int main(int argc, char *argv[]) {
     // Channel names and offsets
     const unsigned num_initial_channels = 3; // NSAMP, VP-VN, GOOD
     const unsigned num_demod_channels = 4;
-    const unsigned num_debug_channels = 9;
+    const unsigned num_debug_channels = 11;
     unsigned num_channels = num_initial_channels + num_demod_channels + num_debug_channels; // total channels: NSAMP, VP-VN, GOOD, PHASE0..N, mixI, mixQ, avgmixI, avgmixQ, LO_I, LO_Q
     std::vector<unsigned> channels_to_read(num_channels);
     vector<string> channel_names = {"NSAMP", "VP-VN", "GOOD"}; 
@@ -166,8 +167,10 @@ int main(int argc, char *argv[]) {
     channel_names.push_back("LO_I");
     channel_names.push_back("LO_Q");
     channel_names.push_back("f0");
-    channel_names.push_back("signal2");
     channel_names.push_back("signal0");
+    channel_names.push_back("signal1");
+    channel_names.push_back("signal2");
+    channel_names.push_back("signal3");
 
     vector<unsigned> channel_offsets(num_channels);
 	vector<unsigned>  width = {4, 2, 2}; // initial width for NSAMP and VP-VN
@@ -262,11 +265,8 @@ int main(int argc, char *argv[]) {
         }
     }
 	
-    unsigned n = 0;
-
     int sleepval = ms * 1000;
     long us0 = 0;
-	long us = 0;
 	
     struct timespec start, stop;
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -312,193 +312,199 @@ int main(int argc, char *argv[]) {
     usleep(1000);
     set_register(map_base, 0, 0x0); // deassert reset
 
-    unsigned nsamp0 = 0;
-    unsigned nsamp = 0;
-    unsigned num_extra_channels = fLO.size(); // time_us, f1,...
     
-    unsigned us_next_dds_update = 10000;
     // Replace vector-based buffer with a one-dimensional dynamically allocated array
     unsigned max_samples = nmax;
-    
+    unsigned num_extra_channels = fLO.size(); // time_us, f1,...
     // Allocate a 1D array: data_buffer[sample * (num_channels + 1) + channel]
     unsigned *data_buffer = new unsigned[max_samples * (num_channels + num_extra_channels)];
-    while (n < nmax && us < tmax_ms * 1000) {
-        clock_gettime(CLOCK_MONOTONIC, &stop);
-        us = (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec) / 1000;
 
-        if(us < t0_ms * 1000) {
-            usleep(10);
-            continue;
-        }   
+    for(unsigned ifile_idx=0; ifile_idx<num_files; ifile_idx++) {
+        unsigned n = 0;
+        unsigned long us = 0;
+    unsigned nsamp0 = 0;
+    unsigned nsamp = 0;
+    
+    
+    unsigned us_next_dds_update = 10000;
+        while (n < nmax && us < tmax_ms * 1000) {
+            clock_gettime(CLOCK_MONOTONIC, &stop);
+            us = (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec) / 1000;
 
-        bool updated_dds = false;
+            if(us < t0_ms * 1000) {
+                usleep(10);
+                continue;
+            }   
 
-        // Store time and raw values in the buffer
-        data_buffer[n * (num_channels + num_extra_channels) + 0] = us;
-        for (size_t i = 0; i < num_channels; ++i) {
-            int ch = channels_to_read[i];
-            reg = get_register(map_base, (channel_offsets[ch] & 0xfffc));
-            if(channel_offsets[ch] % 4 == 2)
-                reg = reg >> 16;
+            bool updated_dds = false;
 
-            unsigned int raw = reg;
-            if(width[ch] == 4)
-                data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] = raw;
-            else
-                data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] = raw & 0xffff;
+            // Store time and raw values in the buffer
+            data_buffer[n * (num_channels + num_extra_channels) + 0] = us;
+            for (size_t i = 0; i < num_channels; ++i) {
+                int ch = channels_to_read[i];
+                reg = get_register(map_base, (channel_offsets[ch] & 0xfffc));
+                if(channel_offsets[ch] % 4 == 2)
+                    reg = reg >> 16;
 
-            if(ch == reference_ch) {
-                double ratio = reg/(double)phase_inc_values[0];
-                // printf(" Set LO frequencies based on reference channel %d ratio %.6f\n", reference_ch, ratio);
-                // set frequencies for other channels
-                for(size_t j=1; j<freq_Hz.size(); j++) {
-                    fLO[j] = freq_Hz[j] * ratio;
-                    set_frequency(map_base, j, fLO[j]);
-                }
-            } else if(dds && kp_dds != 0 && us > us_next_dds_update) {
-                updated_dds = true;
-                for(int pc=1; pc<4; pc++) {
-                    if(ch == phase_channels[pc]) {
-                        //printf(" DDS update channel %d at us=%ld\n", pc, us);
-                        long x = raw;
-                        if (x & 0x80000000)
-                            x -= 0x100000000;
-                        double error_rad = x * scale[ch];
-                        integrator_error[pc] += error_rad;
-                        double correction = kp_dds * error_rad + ki_dds * integrator_error[pc];
-                        fDDS[pc] = freq_Hz[pc] - correction;
-                        //dds->setFrequencyHz(pc, fDDS[pc]);
-                        
-                        phaseDDS[pc] -= 360.0 * correction * dds_update_interval_ms * 1e-3; // phase increment adjustment
-                        phaseDDS[pc] = fmod(phaseDDS[pc], 360.0);
-                        if(phaseDDS[pc] < 0)
-                            phaseDDS[pc] += 360.0;
+                unsigned int raw = reg;
+                if(width[ch] == 4)
+                    data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] = raw;
+                else
+                    data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] = raw & 0xffff;
 
-                        dds->setPhaseDeg(pc, phaseDDS[pc]);
+                if(ch == reference_ch) {
+                    double ratio = reg/(double)phase_inc_values[0];
+                    // printf(" Set LO frequencies based on reference channel %d ratio %.6f\n", reference_ch, ratio);
+                    // set frequencies for other channels
+                    for(size_t j=1; j<freq_Hz.size(); j++) {
+                        fLO[j] = freq_Hz[j] * ratio;
+                        set_frequency(map_base, j, fLO[j]);
+                    }
+                } else if(dds && kp_dds != 0 && us > us_next_dds_update) {
+                    updated_dds = true;
+                    for(int pc=1; pc<4; pc++) {
+                        if(ch == phase_channels[pc]) {
+                            //printf(" DDS update channel %d at us=%ld\n", pc, us);
+                            long x = raw;
+                            if (x & 0x80000000)
+                                x -= 0x100000000;
+                            double error_rad = x * scale[ch];
+                            integrator_error[pc] += error_rad;
+                            double correction = kp_dds * error_rad + ki_dds * integrator_error[pc];
+                            fDDS[pc] = freq_Hz[pc] - correction;
+                            //dds->setFrequencyHz(pc, fDDS[pc]);
+                            
+                            phaseDDS[pc] -= 360.0 * correction * dds_update_interval_ms * 1e-3; // phase increment adjustment
+                            phaseDDS[pc] = fmod(phaseDDS[pc], 360.0);
+                            if(phaseDDS[pc] < 0)
+                                phaseDDS[pc] += 360.0;
 
-                        //printf("[%9ld us] DDS update PC=%d, raw=%6ld, error=%.6f rad, f=%.3f Hz, phase=%7.3f deg\n", 
-                        //       us, pc, x, error_rad, fLO[pc], phaseDDS[pc]);
-                        // simple PI controller
+                            dds->setPhaseDeg(pc, phaseDDS[pc]);
+
+                            //printf("[%9ld us] DDS update PC=%d, raw=%6ld, error=%.6f rad, f=%.3f Hz, phase=%7.3f deg\n", 
+                            //       us, pc, x, error_rad, fLO[pc], phaseDDS[pc]);
+                            // simple PI controller
+                        }
                     }
                 }
-            }
-            if(dds && kp_dds != 0) {
-                for(size_t j=1; j<fLO.size(); j++)
-                    data_buffer[n * (num_channels + num_extra_channels) + num_channels + j] = 
-                        fDDS[j] * 1000; // store f in mHz
-            }
-            else {
-                for(size_t j=1; j<fLO.size(); j++)
-                    data_buffer[n * (num_channels + num_extra_channels) + num_channels + j] = 
-                        fLO[j] * 1000; // store f in mHz
-            }
-        }
-
-        if(updated_dds) {
-            us_next_dds_update += dds_update_interval_ms * 1000;
-        }
-
-        nsamp = data_buffer[n * (num_channels + num_extra_channels) + 1];
-
-        if(n == 0) {
-			us0 = us;
-			nsamp0 = nsamp;
-		}
-		
-        if ((!quiet && showraw) || (n == nmax - 1)  ||     (n == 0) ) {
-            printf(" RAW %8ld us:", us);
-            for (size_t i = 0; i < num_channels; ++i) {
-                printf(width[channels_to_read[i]] == 4 ? " 0x%08X" : "   0x%04X", 
-                       data_buffer[n * (num_channels + 1) + (i + 1)]);
-            }
-            printf("\n");
-        }
-        if (!quiet && showscaled) {
-            printf("Scaled %6ld us:", us);
-            for (size_t i = 0; i < num_channels; ++i) {
-				long x = data_buffer[n * (num_channels + 1) + (i + 1)];
-				int ch = channels_to_read[i];
-				if (bipolar[ch]) {
-					if (width[ch] == 2 && x & 0x8000)
-						x = (~x + 1) & 0xffff;
-						
-					if (width[ch] == 4 && x & 0x80000000)
-						x =  ~x + 1;
-				}
-				
-				float val = x * scale[ch];
-                if (ch == 0)
-                    printf(" %8.4f", val);
-                else if (channels_to_read[i] == 1)
-                    printf(" %8.0f", val - nsamp0);
-                else
-					printf(" %8.0f", val);
-            }
-            printf("\n");
-        }
-        //unsigned diff_us = us - us_prev;
-        //sleepval -= (diff_us - 1000 * ms) / 10;
-        if (sleepval > 0)
-            usleep(sleepval);
-        n++;
-    }
-    
-    float dt = us-us0;
-    if(dt>0)
-		printf("sample rate: %7.3f kHz\n", 1000.0*(nsamp-nsamp0)/dt);
-
-    if (csv_filename.length() > 0) {
-        ofstream csvfile;
-        csvfile.open(csv_filename);
-        if (!csvfile.is_open()) {
-            fprintf(stderr, "Failed to open CSV file: %s\n", csv_filename.c_str());
-            return 1;
-        } else {
-            printf("Writing CSV output to %s\n", csv_filename.c_str());
-        }
-
-        // Set higher precision for floating-point output
-        csvfile << std::fixed << std::setprecision(3);
-
-        // Write CSV header
-        csvfile << "time_us";
-        for (auto ch : channels_to_read) {
-            csvfile << "," << channel_names[ch];
-        }
-        for (size_t j = 1; j < fLO.size(); ++j) {
-            csvfile << ",f" << j;
-        }
-        //
-        csvfile << std::endl;
-
-        // Write buffered data
-        for (unsigned i = 0; i < n; ++i) {
-            unsigned long time_us = data_buffer[i * (num_channels + num_extra_channels) + 0];
-            if(time_us < ms0 * 1000)
-                continue;
-
-            csvfile << time_us;
-            for (size_t j = 0; j < num_channels; ++j) {
-                long x = data_buffer[i * (num_channels + num_extra_channels) + (j + 1)];
-                unsigned ch = channels_to_read[j];
-                // If the channel is bipolar, convert to signed integer
-                if (bipolar[ch]) {
-                    if (width[ch] == 2 && x & 0x8000)
-                        x -= 0x10000;
-                    if (width[ch] == 4 && x & 0x80000000)
-                        x -= 0x100000000;
+                if(dds && kp_dds != 0) {
+                    for(size_t j=1; j<fLO.size(); j++)
+                        data_buffer[n * (num_channels + num_extra_channels) + num_channels + j] = 
+                            fDDS[j] * 1000; // store f in mHz
                 }
-                double value = x * (showscaled ? scale[ch] : 1);
-                csvfile << "," << value;
+                else {
+                    for(size_t j=1; j<fLO.size(); j++)
+                        data_buffer[n * (num_channels + num_extra_channels) + num_channels + j] = 
+                            fLO[j] * 1000; // store f in mHz
+                }
             }
-            // Write extra channels
-            for (unsigned j = 1; j < num_extra_channels; ++j) {
-                csvfile << "," << data_buffer[i * (num_channels + num_extra_channels) + num_channels + j] * 0.001; // convert mHz back to Hz
+
+            if(updated_dds) {
+                us_next_dds_update += dds_update_interval_ms * 1000;
             }
-            csvfile << std::endl;
+
+            nsamp = data_buffer[n * (num_channels + num_extra_channels) + 1];
+
+            if(n == 0) {
+                us0 = us;
+                nsamp0 = nsamp;
+            }
+            
+            if ((!quiet && showraw) || (n == nmax - 1)  ||     (n == 0) ) {
+                printf(" RAW %8ld us:", us);
+                for (size_t i = 0; i < num_channels; ++i) {
+                    printf(width[channels_to_read[i]] == 4 ? " 0x%08X" : "   0x%04X", 
+                        data_buffer[n * (num_channels + 1) + (i + 1)]);
+                }
+                printf("\n");
+            }
+            if (!quiet && showscaled) {
+                printf("Scaled %6ld us:", us);
+                for (size_t i = 0; i < num_channels; ++i) {
+                    long x = data_buffer[n * (num_channels + 1) + (i + 1)];
+                    int ch = channels_to_read[i];
+                    if (bipolar[ch]) {
+                        if (width[ch] == 2 && x & 0x8000)
+                            x = (~x + 1) & 0xffff;
+                            
+                        if (width[ch] == 4 && x & 0x80000000)
+                            x =  ~x + 1;
+                    }
+                    
+                    float val = x * scale[ch];
+                    if (ch == 0)
+                        printf(" %8.4f", val);
+                    else if (channels_to_read[i] == 1)
+                        printf(" %8.0f", val - nsamp0);
+                    else
+                        printf(" %8.0f", val);
+                }
+                printf("\n");
+            }
+            //unsigned diff_us = us - us_prev;
+            //sleepval -= (diff_us - 1000 * ms) / 10;
+            if (sleepval > 0)
+                usleep(sleepval);
+            n++;
         }
-        csvfile.close();
-    }
+        
+        float dt = us-us0;
+        if(dt>0)
+            printf("sample rate: %7.3f kHz\n", 1000.0*(nsamp-nsamp0)/dt);
+
+        if (csv_filename.length() > 0) {
+            ofstream csvfile;
+            csvfile.open(to_string(ifile_idx) + "_" + csv_filename);
+            if (!csvfile.is_open()) {
+                fprintf(stderr, "Failed to open CSV file: %s\n", csv_filename.c_str());
+                return 1;
+            } else {
+                printf("Writing CSV output to %s\n", csv_filename.c_str());
+            }
+
+            // Set higher precision for floating-point output
+            csvfile << std::fixed << std::setprecision(3);
+
+            // Write CSV header
+            csvfile << "time_us";
+            for (auto ch : channels_to_read) {
+                csvfile << "," << channel_names[ch];
+            }
+            for (size_t j = 1; j < fLO.size(); ++j) {
+                csvfile << ",f" << j;
+            }
+            //
+            csvfile << std::endl;
+
+            // Write buffered data
+            for (unsigned i = 0; i < n; ++i) {
+                unsigned long time_us = data_buffer[i * (num_channels + num_extra_channels) + 0];
+                if(time_us < ms0 * 1000)
+                    continue;
+
+                csvfile << time_us;
+                for (size_t j = 0; j < num_channels; ++j) {
+                    long x = data_buffer[i * (num_channels + num_extra_channels) + (j + 1)];
+                    unsigned ch = channels_to_read[j];
+                    // If the channel is bipolar, convert to signed integer
+                    if (bipolar[ch]) {
+                        if (width[ch] == 2 && x & 0x8000)
+                            x -= 0x10000;
+                        if (width[ch] == 4 && x & 0x80000000)
+                            x -= 0x100000000;
+                    }
+                    double value = x * (showscaled ? scale[ch] : 1);
+                    csvfile << "," << value;
+                }
+                // Write extra channels
+                for (unsigned j = 1; j < num_extra_channels; ++j) {
+                    csvfile << "," << data_buffer[i * (num_channels + num_extra_channels) + num_channels + j] * 0.001; // convert mHz back to Hz
+                }
+                csvfile << std::endl;
+            }
+            csvfile.close();
+        }
+    } // end of file loop
 
     // Free the buffer
     delete[] data_buffer;
