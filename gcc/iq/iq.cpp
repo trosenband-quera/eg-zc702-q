@@ -127,7 +127,7 @@ unsigned set_frequency(volatile void *map_base, unsigned channel, double freq_Hz
 }
 
 class udp_sender {
-    public:
+public:
     string ip;
     int port = 50000;
     double freq_hz = 1.0;   // sine frequency
@@ -170,6 +170,24 @@ class udp_sender {
         if (n < 0) {
             perror("sendto");
         }
+    }
+    // Send 2 floats as a single UDP packet (8 bytes, little-endian)
+    void send_data2(float f0, float f1) {
+        unsigned char payload[16];
+        float_to_le_bytes(f0, payload + 0);
+        float_to_le_bytes(f1, payload + 4);
+        ssize_t n = sendto(sock, payload, 8, 0, (struct sockaddr*)&addr, sizeof(addr));
+        if (n < 0) perror("sendto");
+    }
+    // Send 4 floats as a single UDP packet (16 bytes, little-endian)
+    void send_data4(float f0, float f1, float f2, float f3) {
+        unsigned char payload[16];
+        float_to_le_bytes(f0, payload + 0);
+        float_to_le_bytes(f1, payload + 4);
+        float_to_le_bytes(f2, payload + 8);
+        float_to_le_bytes(f3, payload + 12);
+        ssize_t n = sendto(sock, payload, 16, 0, (struct sockaddr*)&addr, sizeof(addr));
+        if (n < 0) perror("sendto");
     }
 
     void send_data(const unsigned* data, size_t count) {
@@ -225,9 +243,16 @@ int main(int argc, char *argv[]) {
 
     // Set default values
     string udp_ip = config.count("udp_ip") ? config["udp_ip"] : "";
+    int udp_plot_channel0 = config.count("udp_plot_channel0") ? std::stoi(config["udp_plot_channel0"]) : -1;
+    int udp_plot_channel1 = config.count("udp_plot_channel1") ? std::stoi(config["udp_plot_channel1"]) : -1;
+    int udp_plot_channel2 = config.count("udp_plot_channel2") ? std::stoi(config["udp_plot_channel2"]) : -1;
+    int udp_plot_channel3 = config.count("udp_plot_channel3") ? std::stoi(config["udp_plot_channel3"]) : -1;
+
     if(!udp_ip.empty()) {
         sender = new udp_sender(udp_ip);
         printf("UDP sender initialized to %s\n", udp_ip.c_str());
+        // Example: send 4 floats (remove or move this to your data loop as needed)
+        // sender->send_data4(1.1f, 2.2f, 3.3f, 4.4f);
     }
     int reference_ch = config.count("ref") ? std::stoi(config["ref"]) : -1;
     unsigned nmax = config.count("nmax") ? std::stoul(config["nmax"]) : 10;
@@ -455,11 +480,13 @@ int main(int argc, char *argv[]) {
     for(unsigned ifile_idx=0; ifile_idx<num_files; ifile_idx++) {
         unsigned n = 0;
         unsigned long us = 0;
-    unsigned nsamp0 = 0;
-    unsigned nsamp = 0;
-    
-    
-    unsigned us_next_dds_update = 10000;
+        unsigned nsamp0 = 0;
+        unsigned nsamp = 0;
+        
+        
+        unsigned us_next_dds_update = 10000;
+
+        float udp_x[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         while (n < nmax && us < tmax_ms * 1000) {
             clock_gettime(CLOCK_MONOTONIC, &stop);
             us = (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec) / 1000;
@@ -532,13 +559,24 @@ int main(int argc, char *argv[]) {
                         data_buffer[n * (num_channels + num_extra_channels) + num_channels + j] = 
                             fLO[j] * 1000; // store f in mHz
                 }
+
+                if(ch == udp_plot_channel0) {
+                    udp_x[0] = data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] * scale[ch];
+                }
+                if(ch == udp_plot_channel1) {
+                    udp_x[1] = data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] * scale[ch];
+                }
+                if(ch == udp_plot_channel2) {
+                    udp_x[2] = data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] * scale[ch];
+                }
+                if(ch == udp_plot_channel3) {
+                    udp_x[3] = data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] * scale[ch];
+                }
             }
 
             if(sender) {
-                float x = data_buffer[n * (num_channels + num_extra_channels) + 2] * scale[1]; // VP-VN scaled
-                sender->send_data(x);//data_buffer + n * (num_channels + num_extra_channels), (num_channels + num_extra_channels)); // send data over UDP
+                sender->send_data4(udp_x[0], udp_x[1], udp_x[2], udp_x[3]);
             }
-
             if(updated_dds) {
                 us_next_dds_update += dds_update_interval_ms * 1000;
             }

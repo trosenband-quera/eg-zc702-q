@@ -14,13 +14,12 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
 
 # -----------------------------
-# Configuration
-# -----------------------------
 UDP_IP = "0.0.0.0"   # listen on all interfaces
 UDP_PORT = 50000
-FMT = "<f"           # little-endian 32-bit float per packet (adjust as needed)
-MAX_POINTS = 500    # plot window size
-
+NUM_FLOATS = 4
+FMT = f"<{NUM_FLOATS}f"  # little-endian 4x 32-bit float per packet
+MAX_POINTS = 1500    # plot window size
+YMAX = 5000  # fixed y-axis max value
 # -----------------------------
 # Asyncio UDP receiver
 # -----------------------------
@@ -29,9 +28,9 @@ class UdpFloatReceiver(asyncio.DatagramProtocol):
         self.q = q
 
     def datagram_received(self, data: bytes, addr):
-        # Parse one float; adjust for your payload format
+        # Parse four floats per packet
         try:
-            value = struct.unpack(FMT, data)[0]
+            values = struct.unpack(FMT, data)
         except struct.error:
             return  # ignore malformed packet
         ts = time.time()
@@ -42,7 +41,7 @@ class UdpFloatReceiver(asyncio.DatagramProtocol):
             except asyncio.QueueEmpty:
                 pass
         try:
-            self.q.put_nowait((ts, value))
+            self.q.put_nowait((ts, values))
         except asyncio.QueueFull:
             pass
 
@@ -70,10 +69,11 @@ def start_event_loop_in_thread(q: asyncio.Queue):
 # -----------------------------
 # Tkinter GUI with Matplotlib
 # -----------------------------
+
 class LivePlotApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("UDP Live Data with Spinbox")
+        self.root.title("UDP Live Data (4 floats, 4 plots)")
         self.q = asyncio.Queue(maxsize=10000)
         start_event_loop_in_thread(self.q)
 
@@ -84,15 +84,18 @@ class LivePlotApp:
         spin_label = ttk.Label(root, text="Max Points")
         spin_label.pack(side=tk.TOP)
 
-        # Matplotlib Figure
-        self.fig, self.ax = plt.subplots()
-        self.line, = self.ax.plot([], [], lw=1.5)
-        self.ax.set_title(f"UDP live data (port {UDP_PORT})")
-        self.ax.set_xlabel("Time (s)")
-        self.ax.set_ylabel("Value")
+        # Matplotlib Figure: 2x2 subplots
+        self.fig, self.axes = plt.subplots(2, 2, figsize=(10, 10))
+        self.lines = []
+    
+        for i, ax in enumerate(self.axes.flat):
+            line, = ax.plot([], [], lw=1.5)
+            ax.set_title(f"Signal {i}")
+            ax.set_xlabel("Time (s)")
+            self.lines.append(line)
 
-        self.times = deque(maxlen=self.spin_var.get())
-        self.values = deque(maxlen=self.spin_var.get())
+        self.times = [deque(maxlen=self.spin_var.get()) for _ in range(NUM_FLOATS)]
+        self.values = [deque(maxlen=self.spin_var.get()) for _ in range(NUM_FLOATS)]
         self.t0 = time.time()
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
@@ -106,46 +109,39 @@ class LivePlotApp:
 
     def update_max_points(self, *args):
         max_points = self.spin_var.get()
-        self.times = deque(self.times, maxlen=max_points)
-        self.values = deque(self.values, maxlen=max_points)
+        self.times = [deque(t, maxlen=max_points) for t in self.times]
+        self.values = [deque(v, maxlen=max_points) for v in self.values]
 
     def init(self):
-        self.ax.set_xlim(0, 10)  # initial 10s window
-        self.ax.set_ylim(-1, 1)  # adjust as needed
-        return (self.line,)
+        for ax in self.axes.flat:
+            ax.set_xlim(0, 10)
+            ax.set_ylim(0, YMAX)
+        return tuple(self.lines)
 
     def update(self, _frame):
-        # Drain queue quickly
         got = 0
         while True:
             try:
-                ts, val = self.q.get_nowait()
-                self.times.append(ts - self.t0)
-                self.values.append(val)
+                ts, vals = self.q.get_nowait()
+                for i in range(NUM_FLOATS):
+                    self.times[i].append(ts - self.t0)
+                    self.values[i].append(vals[i])
                 got += 1
+                #print(f"Received: {vals} at {ts}")
             except asyncio.QueueEmpty:
                 break
 
         if got == 0:
-            # Nothing new — skip redraw to reduce CPU
-            return (self.line,)
+            return tuple(self.lines)
 
-        # Update data
-        self.line.set_data(self.times, self.values)
-
-        # Auto-scale x-window around latest 10s
-        if len(self.times) > 1:
-            t_last = self.times[-1]
-            self.ax.set_xlim(max(0, t_last - 10), t_last)
-
-        # Optional dynamic y-limits
-        if len(self.values) > 10:
-            vmin = min(self.values)
-            vmax = max(self.values)
-            pad = 0.05 * (vmax - vmin + 1e-6)
-            self.ax.set_ylim(vmin - pad, vmax + pad)
-
-        return (self.line,)
+        for i, (line, ax) in enumerate(zip(self.lines, self.axes.flat)):
+            line.set_data(self.times[i], self.values[i])
+            if len(self.times[i]) > 1:
+                t_last = self.times[i][-1]
+                ax.set_xlim(max(0, t_last - 10), t_last)
+            if len(self.values[i]) > 10:
+                ax.set_ylim(0, YMAX)
+        return tuple(self.lines)
 
 def main():
     root = tk.Tk()
