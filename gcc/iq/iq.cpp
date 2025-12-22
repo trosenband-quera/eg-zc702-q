@@ -128,14 +128,14 @@ unsigned set_frequency(volatile void *map_base, unsigned channel, double freq_Hz
 
 class udp_sender {
     public:
-    const char* ip = "10.0.0.1";
+    string ip;
     int port = 50000;
     double freq_hz = 1.0;   // sine frequency
     double send_rate_hz = 100.0; // packet rate
     double dt;
     struct sockaddr_in addr;
     int sock;
-    udp_sender() {
+    udp_sender(string ip_addr) : ip(ip_addr) {
         dt = 1.0 / send_rate_hz;
     
         sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -148,8 +148,8 @@ class udp_sender {
         memset(&addr, 0, sizeof(addr));
         addr.sin_family = AF_INET;
         addr.sin_port = htons((uint16_t)port);
-        if (inet_pton(AF_INET, ip, &addr.sin_addr) != 1) {
-            fprintf(stderr, "inet_pton failed for %s\n", ip);
+        if (inet_pton(AF_INET, ip.c_str(), &addr.sin_addr) != 1) {
+            fprintf(stderr, "inet_pton failed for %s\n", ip.c_str());
             close(sock);
             return;
         }
@@ -186,7 +186,7 @@ class udp_sender {
         clock_gettime(CLOCK_MONOTONIC, &t0);
 
         printf("Sending UDP floats to %s:%d at %.1f Hz (sine %.1f Hz)\n",
-            ip, port, send_rate_hz, freq_hz);
+            ip.c_str(), port, send_rate_hz, freq_hz);
 
         for (; keep_running;) {
             // Current time
@@ -208,7 +208,7 @@ class udp_sender {
 };
 
 int main(int argc, char *argv[]) {
-    udp_sender sender;
+    udp_sender* sender = 0;
     //sender.run();
 
     int fd;
@@ -224,6 +224,11 @@ int main(int argc, char *argv[]) {
     map<string, string> config = read_config(config_file);
 
     // Set default values
+    string udp_ip = config.count("udp_ip") ? config["udp_ip"] : "";
+    if(!udp_ip.empty()) {
+        sender = new udp_sender(udp_ip);
+        printf("UDP sender initialized to %s\n", udp_ip.c_str());
+    }
     int reference_ch = config.count("ref") ? std::stoi(config["ref"]) : -1;
     unsigned nmax = config.count("nmax") ? std::stoul(config["nmax"]) : 10;
     double t0_ms = config.count("t0_ms") ? std::stod(config["t0_ms"]) : 0.0;
@@ -333,6 +338,10 @@ int main(int argc, char *argv[]) {
         scale.push_back(0);
         if(channel_names[i] == "f0") {
             scale[i] = SAMPLE_RATE_HZ / 65536.0 / 65536.0;
+        }
+
+        if(channel_names[i].find("signal") != string::npos) {
+            scale[i] = 1;
         }
 
         channels_to_read[i] = i;      
@@ -525,7 +534,10 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-            sender.send_data(data_buffer + n * (num_channels + num_extra_channels), (num_channels + num_extra_channels)); // send data over UDP
+            if(sender) {
+                float x = data_buffer[n * (num_channels + num_extra_channels) + 2] * scale[1]; // VP-VN scaled
+                sender->send_data(x);//data_buffer + n * (num_channels + num_extra_channels), (num_channels + num_extra_channels)); // send data over UDP
+            }
 
             if(updated_dds) {
                 us_next_dds_update += dds_update_interval_ms * 1000;
@@ -591,7 +603,7 @@ int main(int argc, char *argv[]) {
             }
 
             // Set higher precision for floating-point output
-            csvfile << std::fixed << std::setprecision(3);
+            csvfile << std::fixed << std::setprecision(4);
 
             // Write CSV header
             csvfile << "time_us";
@@ -643,6 +655,10 @@ int main(int argc, char *argv[]) {
     if(dds) {
         dds->close();
         delete dds;
+    }
+
+    if(sender) {
+        delete sender;
     }
 
     

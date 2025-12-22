@@ -16,4 +16,4 @@ dds_device=/dev/ttyUSB0
 kp_dds=-8
 ki_dds=-0.5
 dds_update_interval_ms=8
-
+udp_ip=10.0.0.1
