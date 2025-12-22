@@ -15,5 +15,5 @@ channels=0,3,4,5,13,14,15,16,17
 dds_device=/dev/ttyUSB0
 kp_dds=-8
 ki_dds=-0.5
-dds_update_interval_ms=12
+dds_update_interval_ms=8
 

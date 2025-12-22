@@ -21,10 +21,10 @@ def plot_csv(filename, hist_raw=False):
     print(f"Plotting data from {filename} with shape {arr.shape}")
     print(f"Average time step: {dt:.2f} us, Plot PSD: {plotPSD}")
     # Identify mixer channels (names containing 'MIX' or 'MIXER')
-    mixer_indices = [i for i, h in enumerate(header) if 'MIX' in h.upper() or 'MIXER' in h.upper() or 
-                     'signal' in h.lower() or 'f' in h.lower()[0:1]]
+    mixer_indices = [i for i, h in enumerate(header) if 'MIX' in h.upper() or 'MIXER' in h.upper() or 'f' in h.lower()[0:1]]
     skip_indices  = [i for i, h in enumerate(header) if 'NSAMP' in h.upper()]
-    other_indices = [i for i in range(1, arr.shape[1]) if i not in mixer_indices and i not in skip_indices]
+    signal_indices = [i for i, h in enumerate(header) if 'SIGNAL' in h.upper()] 
+    other_indices = [i for i in range(1, arr.shape[1]) if i not in mixer_indices and i not in skip_indices and i not in signal_indices]
 
     # Find avgmixI and avgmixQ indices
     try:
@@ -40,6 +40,8 @@ def plot_csv(filename, hist_raw=False):
         if "PHASE" in h.upper():
             idx_phase.append(i)
     has_phase0 = len(idx_phase) > 0
+
+    has_signal = len(signal_indices) > 0
 
     if hist_raw:
         i = 1
@@ -64,8 +66,8 @@ def plot_csv(filename, hist_raw=False):
         plt.show()
         return
 
-    # Plot in subplots: non-mixer, mixer
-    nplot = 2
+    # Plot in subplots: non-mixer, mixer, signal
+    nplot = 3
 
     if plotPSD:
         fig, axs = plt.subplots(2, 2, sharex=False, figsize=(10, 8))
@@ -80,6 +82,7 @@ def plot_csv(filename, hist_raw=False):
         fig, axs = plt.subplots(nplot, 1, sharex=False, figsize=(10, 4*nplot))
         ax0 = axs[0]
         ax1 = axs[1] if nplot > 1 else None
+        ax2 = axs[2] if nplot > 2 else None
 
     ax = ax0
     # Non-mixer channels + atan2(avgmixQ, avgmixI) if present
@@ -136,7 +139,25 @@ def plot_csv(filename, hist_raw=False):
         # ax.set_ylim(-10, 10)
         iax += 1
 
-    # Interpolate phase0 onto a 1us grid and plot phase noise power spectrum
+    if has_signal:
+        # Third subplot
+        for idx in signal_indices:
+            
+            offset = 0
+            lbl = header[idx]
+ 
+            y = arr[:, idx]-offset
+
+            ax2.plot(time, y, label=lbl, linewidth=1)
+            ax2.scatter(time, y, s=6)
+
+            ax2.set_xlabel("time (ms)")
+            ax2.set_title("Signal Magnitudes")
+            ax2.legend()
+            ax2.grid(True)
+            iax += 1
+
+        # Interpolate phase0 onto a 1us grid and plot phase noise power spectrum
     if plotPSD:
         ax = axbig
         plotphase = False

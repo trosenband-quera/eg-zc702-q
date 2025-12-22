@@ -22,9 +22,49 @@
 #include <cmath>
 #include <iomanip>
 
+#include <string.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <signal.h>
+
 #include "Novatech409c.h"
 
 using namespace std;
+
+// Convert host float to little-endian byte array (portable)
+static void float_to_le_bytes(float f, unsigned char out[4]) {
+    // Reinterpret bytes
+    union {
+        float f;
+        unsigned char b[4];
+    } u;
+    u.f = f;
+
+    // Detect endianness at runtime
+    int x = 1;
+    int is_little = *(char*)&x == 1;
+
+    if (is_little) {
+        // Host is little-endian: copy as-is
+        out[0] = u.b[0];
+        out[1] = u.b[1];
+        out[2] = u.b[2];
+        out[3] = u.b[3];
+    } else {
+        // Host is big-endian: reverse
+        out[0] = u.b[3];
+        out[1] = u.b[2];
+        out[2] = u.b[1];
+        out[3] = u.b[0];
+    }
+}
+
+static volatile int keep_running = 1;
+
+static void handle_sigint(int sig) {
+    keep_running = 0;
+}
+
 
 void set_register(volatile void *map_base, unsigned num, unsigned value) {
     *(volatile unsigned int *)((char *)map_base + num*4) = value;
@@ -86,7 +126,91 @@ unsigned set_frequency(volatile void *map_base, unsigned channel, double freq_Hz
     return phase_inc;
 }
 
+class udp_sender {
+    public:
+    const char* ip = "10.0.0.1";
+    int port = 50000;
+    double freq_hz = 1.0;   // sine frequency
+    double send_rate_hz = 100.0; // packet rate
+    double dt;
+    struct sockaddr_in addr;
+    int sock;
+    udp_sender() {
+        dt = 1.0 / send_rate_hz;
+    
+        sock = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sock < 0) {
+            perror("socket");
+            return;
+        }
+
+        
+        memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons((uint16_t)port);
+        if (inet_pton(AF_INET, ip, &addr.sin_addr) != 1) {
+            fprintf(stderr, "inet_pton failed for %s\n", ip);
+            close(sock);
+            return;
+        }
+
+        // Handle kill/interrupt signals for clean exit
+        signal(SIGINT, handle_sigint);
+        signal(SIGTERM, handle_sigint);
+    }
+
+    void send_data(float x) {
+        // Pack as little-endian float
+        unsigned char payload[4];
+        float_to_le_bytes(x, payload);
+
+        // Send
+        ssize_t n = sendto(sock, payload, sizeof(payload), 0,
+                        (struct sockaddr*)&addr, sizeof(addr));
+        if (n < 0) {
+            perror("sendto");
+        }
+    }
+
+    void send_data(const unsigned* data, size_t count) {
+        // Send
+        ssize_t n = sendto(sock, data, count * sizeof(unsigned), 0,
+                        (struct sockaddr*)&addr, sizeof(addr));
+        if (n < 0) {
+            perror("sendto");
+        }
+    }
+    void run() {
+        // Timebase: monotonic clock
+        struct timespec t0;
+        clock_gettime(CLOCK_MONOTONIC, &t0);
+
+        printf("Sending UDP floats to %s:%d at %.1f Hz (sine %.1f Hz)\n",
+            ip, port, send_rate_hz, freq_hz);
+
+        for (; keep_running;) {
+            // Current time
+            struct timespec now;
+            clock_gettime(CLOCK_MONOTONIC, &now);
+            double t = (now.tv_sec - t0.tv_sec) + (now.tv_nsec - t0.tv_nsec) / 1e9;
+
+            // 1 Hz sine
+            int x = 1000*sin(2.0 * M_PI * freq_hz * t);
+
+            send_data(x);
+
+            // Sleep to maintain ~100 Hz
+            usleep((long)(dt * 1000000.0));
+        }
+
+        close(sock);
+    }
+};
+
 int main(int argc, char *argv[]) {
+    udp_sender sender;
+    //sender.run();
+
     int fd;
     void *map_base;
     unsigned int reg;
@@ -354,6 +478,8 @@ int main(int argc, char *argv[]) {
 
                 if(ch == reference_ch) {
                     double ratio = reg/(double)phase_inc_values[0];
+                    
+                    
                     // printf(" Set LO frequencies based on reference channel %d ratio %.6f\n", reference_ch, ratio);
                     // set frequencies for other channels
                     for(size_t j=1; j<freq_Hz.size(); j++) {
@@ -398,6 +524,8 @@ int main(int argc, char *argv[]) {
                             fLO[j] * 1000; // store f in mHz
                 }
             }
+
+            sender.send_data(data_buffer + n * (num_channels + num_extra_channels), (num_channels + num_extra_channels)); // send data over UDP
 
             if(updated_dds) {
                 us_next_dds_update += dds_update_interval_ms * 1000;
@@ -517,5 +645,6 @@ int main(int argc, char *argv[]) {
         delete dds;
     }
 
+    
     return 0;
 }

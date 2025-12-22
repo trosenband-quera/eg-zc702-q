@@ -18,7 +18,7 @@ from matplotlib.animation import FuncAnimation
 # -----------------------------
 UDP_IP = "0.0.0.0"   # listen on all interfaces
 UDP_PORT = 50000
-FMT = "<f"           # little-endian 32-bit float per packet (adjust as needed)
+FMT = "<i"           # little-endian 32-bit int per packet (adjust as needed)
 MAX_POINTS = 500    # plot window size
 
 # -----------------------------
