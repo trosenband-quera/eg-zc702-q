@@ -11,7 +11,7 @@ zcu111:
 .PHONY : bit
 bit:
 	vivado -mode batch -source genbitstream.tcl
-
+	
 # configure FPGA for Xilinx 2025.1 tools
 .PHONY: fpgacfg
 fpgacfg:

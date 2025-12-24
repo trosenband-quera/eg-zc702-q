@@ -13,11 +13,10 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
 
+import message_pb2
 # -----------------------------
 UDP_IP = "0.0.0.0"   # listen on all interfaces
 UDP_PORT = 50000
-NUM_FLOATS = 4
-FMT = f"<{NUM_FLOATS}f"  # little-endian 4x 32-bit float per packet
 MAX_POINTS = 1500    # plot window size
 YMAX = 5000  # fixed y-axis max value
 # -----------------------------
@@ -29,21 +28,26 @@ class UdpFloatReceiver(asyncio.DatagramProtocol):
 
     def datagram_received(self, data: bytes, addr):
         # Parse four floats per packet
+        # Parse Protobuf message
+        msg = message_pb2.plotData()
         try:
-            values = struct.unpack(FMT, data)
-        except struct.error:
-            return  # ignore malformed packet
-        ts = time.time()
-        # Non-blocking put (drop oldest if queue is full)
-        if self.q.full():
+            msg.ParseFromString(data)
+            ts = time.time()
+            # Non-blocking put (drop oldest if queue is full)
+            if self.q.full():
+                try:
+                    self.q.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
             try:
-                self.q.get_nowait()
-            except asyncio.QueueEmpty:
+                self.q.put_nowait((ts, list(msg.values)))
+            except asyncio.QueueFull:
                 pass
-        try:
-            self.q.put_nowait((ts, values))
-        except asyncio.QueueFull:
-            pass
+
+        except Exception as e:
+            print(f"Failed to parse Protobuf message: {e}")
+
+        
 
 async def udp_server(q: asyncio.Queue):
     loop = asyncio.get_running_loop()
@@ -94,8 +98,8 @@ class LivePlotApp:
             ax.set_xlabel("Time (s)")
             self.lines.append(line)
 
-        self.times = [deque(maxlen=self.spin_var.get()) for _ in range(NUM_FLOATS)]
-        self.values = [deque(maxlen=self.spin_var.get()) for _ in range(NUM_FLOATS)]
+        self.times = [deque(maxlen=self.spin_var.get())]
+        self.values = [deque(maxlen=self.spin_var.get())]
         self.t0 = time.time()
 
         self.canvas = FigureCanvasTkAgg(self.fig, master=root)
@@ -116,6 +120,7 @@ class LivePlotApp:
         for ax in self.axes.flat:
             ax.set_xlim(0, 10)
             ax.set_ylim(0, YMAX)
+            ax.grid(True)
         return tuple(self.lines)
 
     def update(self, _frame):
@@ -123,9 +128,15 @@ class LivePlotApp:
         while True:
             try:
                 ts, vals = self.q.get_nowait()
-                for i in range(NUM_FLOATS):
+                if len(self.times) != len(vals):
+                    nval = len(vals)
+                    self.times = [deque(maxlen=self.spin_var.get()) for _ in range(nval)]
+                    self.values = [deque(maxlen=self.spin_var.get()) for _ in range(nval)]
+
+                for i in range(len(vals)):
                     self.times[i].append(ts - self.t0)
                     self.values[i].append(vals[i])
+
                 got += 1
                 #print(f"Received: {vals} at {ts}")
             except asyncio.QueueEmpty:
@@ -141,6 +152,7 @@ class LivePlotApp:
                 ax.set_xlim(max(0, t_last - 10), t_last)
             if len(self.values[i]) > 10:
                 ax.set_ylim(0, YMAX)
+            #ax.figure.canvas.draw_idle()
         return tuple(self.lines)
 
 def main():

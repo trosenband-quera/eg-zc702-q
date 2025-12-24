@@ -28,36 +28,9 @@
 #include <signal.h>
 
 #include "Novatech409c.h"
+#include "message.pb.h"
 
 using namespace std;
-
-// Convert host float to little-endian byte array (portable)
-static void float_to_le_bytes(float f, unsigned char out[4]) {
-    // Reinterpret bytes
-    union {
-        float f;
-        unsigned char b[4];
-    } u;
-    u.f = f;
-
-    // Detect endianness at runtime
-    int x = 1;
-    int is_little = *(char*)&x == 1;
-
-    if (is_little) {
-        // Host is little-endian: copy as-is
-        out[0] = u.b[0];
-        out[1] = u.b[1];
-        out[2] = u.b[2];
-        out[3] = u.b[3];
-    } else {
-        // Host is big-endian: reverse
-        out[0] = u.b[3];
-        out[1] = u.b[2];
-        out[2] = u.b[1];
-        out[3] = u.b[0];
-    }
-}
 
 static volatile int keep_running = 1;
 
@@ -135,6 +108,8 @@ public:
     double dt;
     struct sockaddr_in addr;
     int sock;
+    std::string buffer;
+
     udp_sender(string ip_addr) : ip(ip_addr) {
         dt = 1.0 / send_rate_hz;
     
@@ -159,76 +134,32 @@ public:
         signal(SIGTERM, handle_sigint);
     }
 
-    void send_data(float x) {
-        // Pack as little-endian float
-        unsigned char payload[4];
-        float_to_le_bytes(x, payload);
+    void send_data(const float* x, unsigned count) {
+        udp_example::plotData msg;
+        for (unsigned i = 0; i < count; ++i) {
+            msg.add_values(x[i]);
+        }
+        
+        if (!msg.SerializeToString(&buffer)) {
+            std::cerr << "Failed to serialize message.\n";
+            return;
+        }
 
         // Send
-        ssize_t n = sendto(sock, payload, sizeof(payload), 0,
+        ssize_t n = sendto(sock, buffer.data(), buffer.size(), 0,
                         (struct sockaddr*)&addr, sizeof(addr));
         if (n < 0) {
             perror("sendto");
         }
     }
-    // Send 2 floats as a single UDP packet (8 bytes, little-endian)
-    void send_data2(float f0, float f1) {
-        unsigned char payload[16];
-        float_to_le_bytes(f0, payload + 0);
-        float_to_le_bytes(f1, payload + 4);
-        ssize_t n = sendto(sock, payload, 8, 0, (struct sockaddr*)&addr, sizeof(addr));
-        if (n < 0) perror("sendto");
-    }
-    // Send 4 floats as a single UDP packet (16 bytes, little-endian)
-    void send_data4(float f0, float f1, float f2, float f3) {
-        unsigned char payload[16];
-        float_to_le_bytes(f0, payload + 0);
-        float_to_le_bytes(f1, payload + 4);
-        float_to_le_bytes(f2, payload + 8);
-        float_to_le_bytes(f3, payload + 12);
-        ssize_t n = sendto(sock, payload, 16, 0, (struct sockaddr*)&addr, sizeof(addr));
-        if (n < 0) perror("sendto");
-    }
-
-    void send_data(const unsigned* data, size_t count) {
-        // Send
-        ssize_t n = sendto(sock, data, count * sizeof(unsigned), 0,
-                        (struct sockaddr*)&addr, sizeof(addr));
-        if (n < 0) {
-            perror("sendto");
-        }
-    }
-    void run() {
-        // Timebase: monotonic clock
-        struct timespec t0;
-        clock_gettime(CLOCK_MONOTONIC, &t0);
-
-        printf("Sending UDP floats to %s:%d at %.1f Hz (sine %.1f Hz)\n",
-            ip.c_str(), port, send_rate_hz, freq_hz);
-
-        for (; keep_running;) {
-            // Current time
-            struct timespec now;
-            clock_gettime(CLOCK_MONOTONIC, &now);
-            double t = (now.tv_sec - t0.tv_sec) + (now.tv_nsec - t0.tv_nsec) / 1e9;
-
-            // 1 Hz sine
-            int x = 1000*sin(2.0 * M_PI * freq_hz * t);
-
-            send_data(x);
-
-            // Sleep to maintain ~100 Hz
-            usleep((long)(dt * 1000000.0));
-        }
-
+    ~udp_sender() {
         close(sock);
     }
 };
 
 int main(int argc, char *argv[]) {
     udp_sender* sender = 0;
-    //sender.run();
-
+    
     int fd;
     void *map_base;
     unsigned int reg;
@@ -575,7 +506,7 @@ int main(int argc, char *argv[]) {
             }
 
             if(sender) {
-                sender->send_data4(udp_x[0], udp_x[1], udp_x[2], udp_x[3]);
+                sender->send_data(udp_x, 4);
             }
             if(updated_dds) {
                 us_next_dds_update += dds_update_interval_ms * 1000;

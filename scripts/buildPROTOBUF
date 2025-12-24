@@ -1,0 +1,27 @@
+mkdir -p ../thirdparty
+cd ../thirdparty
+
+VERSION=3.19.0
+
+set -e
+
+if [ ! -d "protobuf" ]; then
+  git clone https://github.com/google/protobuf
+fi
+
+cd protobuf
+
+
+git checkout v$VERSION
+
+if [ ! -d "protoc-$VERSION" ]; then
+  wget https://github.com/google/protobuf/releases/download/v$VERSION/protoc-$VERSION-linux-x86_64.zip
+  mkdir protoc-$VERSION
+  unzip protoc-$VERSION-linux-x86_64.zip -d protoc-$VERSION/
+fi
+
+./autogen.sh
+
+./configure --host=arm-linux-gnueabihf --with-protoc=./protoc-$VERSION/bin/protoc 
+
+make -j 8

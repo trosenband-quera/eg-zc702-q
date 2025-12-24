@@ -13,9 +13,11 @@ CC := $(CROSS_COMPILE)-gcc
 CXX := $(CROSS_COMPILE)-g++
 LD := $(CROSS_COMPILE)-ld
 
+PROTOC := protoc 
+
 # More warnings.
 CFLAGS := -Wall -Wextra
-CXXFLAGS := -Wall -Wextra -Wno-psabi  -O2 -std=c++17#-g -O1 -gdwarf-4
+CXXFLAGS := -Wall -Wextra -Wno-psabi  -O2  -Iinclude/ #-g -O1 -gdwarf-4
 
 # The minimal linux does not have shared libraries to dynamically link to so
 # executable must be statically linked.
@@ -27,7 +29,13 @@ LDFLAGS := -static -lm -lgcc
 #LDLIBS := -lm
 
 # First target is the default so name it as such.
-default: $(SELF)
+default: iq
+
+iq: iq.cpp Novatech409c.cpp message.pb.cc message.pb.h
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) iq.cpp Novatech409c.cpp message.pb.cc -o $(SELF)  lib/libprotobuf-lite.a -latomic
+
+proto: message.proto
+	$(PROTOC) --cpp_out=. --python_out=. message.proto
 
 serial_comm: serial_comm.cpp Novatech409c.cpp
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) serial_comm.cpp Novatech409c.cpp -o serial_comm
@@ -35,10 +43,18 @@ serial_comm: serial_comm.cpp Novatech409c.cpp
 udpsend: udpsend.cpp
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) udpsend.cpp -o udpsend
 
+udpsend2: udpsend2.cpp message.pb.cc message.pb.h
+	$(CXX) $(CXXFLAGS) $(LDFLAGS)  udpsend2.cpp message.pb.cc -o udpsend2  lib/libprotobuf-lite.a -latomic
+
 .PHONY : udp
 udp: udpsend
 	scp udpsend zc702:~/
 	ssh zc702 -C "chmod u+x ./udpsend && ./udpsend 10.0.0.1"
+
+.PHONY : udp2
+udp2: udpsend2
+	scp udpsend2 zc702:~/
+	ssh zc702 -C "chmod u+x ./udpsend2 && ./udpsend2 10.0.0.1"
 
 .PHONY : serial
 serial: serial_comm
@@ -104,7 +120,7 @@ gethist:
 .PHONY : clean
 clean:
 	-rm -f *.o *.bit *.csv
-	-rm -f $(SELF) serial_comm udpsend
+	-rm -f $(SELF) serial_comm udpsend udpsend2
 
 # List all Make targets.
 .PHONY : list
