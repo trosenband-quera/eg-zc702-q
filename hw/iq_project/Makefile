@@ -8,22 +8,28 @@ default:
 zcu111:
 	vivado -source recreate_zcu111.tcl
 
-.PHONY : bit
-bit:
+top.bit:
 	vivado -mode batch -source genbitstream.tcl
 	
+top.bit.bin: top.bit
+	bootgen -w -image bitstream.bif -arch zynq -process_bitstream bin
+
 # configure FPGA for Xilinx 2025.1 tools
 .PHONY: fpgacfg
-fpgacfg:
-	cp ../../vivado/iq_project/top.bit pl.bit
-	bootgen -w -image bitstream.bif -arch zynq -process_bitstream bin
+fpgacfg: top.bit.bin
 	ssh zc702 -C "mkdir -p /lib/firmware"
 	scp top.bit.bin zc702:/lib/firmware
 	ssh zc702 -C "echo 0 > /sys/class/fpga_manager/fpga0/flags"
 	ssh zc702 -C "echo top.bit.bin > /sys/class/fpga_manager/fpga0/firmware"
 	
+# configure FPGA for Xilinx 2018.2 tools
+.PHONY: xdevcfg
+xdevcfg: bit
+	scp top.bit zc702:~/
+	ssh zc702 -C "cat top.bit > /dev/xdevcfg"
+	
 .PHONY: bitcfg
-bitcfg: bit fpgacfg
+bitcfg: bitbin fpgacfg
 
 .PHONY : check
 check:

@@ -27,10 +27,10 @@ class UdpFloatReceiver(asyncio.DatagramProtocol):
         self.q = q
 
     def datagram_received(self, data: bytes, addr):
-        # Parse four floats per packet
         # Parse Protobuf message
         msg = message_pb2.plotData()
         try:
+            # print(f"Received data: {data}, length={len(data)} from {addr}")
             msg.ParseFromString(data)
             ts = time.time()
             # Non-blocking put (drop oldest if queue is full)
@@ -40,7 +40,8 @@ class UdpFloatReceiver(asyncio.DatagramProtocol):
                 except asyncio.QueueEmpty:
                     pass
             try:
-                self.q.put_nowait((ts, list(msg.values)))
+                self.q.put_nowait((ts, msg))
+
             except asyncio.QueueFull:
                 pass
 
@@ -77,7 +78,7 @@ def start_event_loop_in_thread(q: asyncio.Queue):
 class LivePlotApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("UDP Live Data (4 floats, 4 plots)")
+        self.root.title("I/Q Demodulator Live Data")
         self.q = asyncio.Queue(maxsize=10000)
         start_event_loop_in_thread(self.q)
 
@@ -86,29 +87,30 @@ class LivePlotApp:
         spinbox = ttk.Spinbox(root, from_=100, to=20000, increment=100, textvariable=self.spin_var, width=8)
         spinbox.pack(side=tk.TOP, padx=10, pady=5)
         spin_label = ttk.Label(root, text="Max Points")
-        spin_label.pack(side=tk.TOP)
+        spin_label.pack(side=tk.TOP, padx=10, pady=5)
 
-        # Matplotlib Figure: 2x2 subplots
-        self.fig, self.axes = plt.subplots(2, 2, figsize=(10, 10))
-        self.lines = []
-    
-        for i, ax in enumerate(self.axes.flat):
-            line, = ax.plot([], [], lw=1.5)
-            ax.set_title(f"Signal {i}")
-            ax.set_xlabel("Time (s)")
-            self.lines.append(line)
+        # Label for number of samples received
+        self.samples_received_var = tk.IntVar(value=0)
+        samples_label = ttk.Label(root, textvariable=self.samples_received_var, font=("TkDefaultFont", 12, "bold"))
+        samples_label.pack(side=tk.TOP, padx=10, pady=5)
+        samples_caption = ttk.Label(root, text="Samples received")
+        samples_caption.pack(side=tk.TOP, padx=10, pady=5)
 
         self.times = [deque(maxlen=self.spin_var.get())]
         self.values = [deque(maxlen=self.spin_var.get())]
         self.t0 = time.time()
-
-        self.canvas = FigureCanvasTkAgg(self.fig, master=root)
+        
+        self.fig = plt.figure()
+        
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.root)
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
         # Update deque maxlen when spinbox changes
         self.spin_var.trace_add("write", self.update_max_points)
 
-        self.ani = FuncAnimation(self.fig, self.update, init_func=self.init,
+        self.lines = []
+        self.axes = []
+        self.ani = FuncAnimation(self.fig, self.update,
                                  interval=20, blit=True, cache_frame_data=False)
 
     def update_max_points(self, *args):
@@ -116,47 +118,91 @@ class LivePlotApp:
         self.times = [deque(t, maxlen=max_points) for t in self.times]
         self.values = [deque(v, maxlen=max_points) for v in self.values]
 
-    def init(self):
-        for ax in self.axes.flat:
-            ax.set_xlim(0, 10)
-            ax.set_ylim(0, YMAX)
-            ax.grid(True)
+    def setnumplots(self, n):
+        # Matplotlib Figure: n subplots
+        if n>4:
+            nrows = 4
+            ncols = n // 4 + (1 if n % 4 != 0 else 0)
+        else:
+            nrows = n
+            ncols = 1
+
+        width = ncols*500
+        self.root.geometry(f"{width}x{nrows*400}+{4000-width}+0")
+        self.fig.clf()
+        self.axes = [None]*n
+        self.lines = [None]*n
+        # Create subplots
+        ival = 0
+        for c in range(ncols):
+            for r in range(nrows):
+                iplot = r*ncols + c
+                if ival >= n:
+                    break
+
+                
+                ax = self.fig.add_subplot(nrows, ncols, iplot + 1)
+                self.axes[ival] = ax
+
+                line, = ax.plot([], [], lw=1.5)
+                title = f"Signal {ival}"
+                ax.set_title(title)
+                
+
+                self.lines[ival] = line
+                ival += 1
+
+                if ival >= n or r+1 == nrows:
+                    ax.set_xlabel("Time (s)")
+                else:
+                    ax.set_xticklabels([])
+
+                ax.set_xlim(0, 10)
+                ax.set_ylim(0, YMAX)
+                ax.grid(True)
+                ax.figure.canvas.draw_idle()
+                print(f"Created plot {iplot}, rows={nrows}, cols={ncols}, title={title}")
+
         return tuple(self.lines)
 
     def update(self, _frame):
-        got = 0
+        got_values = 0
         while True:
             try:
-                ts, vals = self.q.get_nowait()
-                if len(self.times) != len(vals):
-                    nval = len(vals)
-                    self.times = [deque(maxlen=self.spin_var.get()) for _ in range(nval)]
-                    self.values = [deque(maxlen=self.spin_var.get()) for _ in range(nval)]
+                ts, msg = self.q.get_nowait()
+                if msg.values:
+                    vals = list(msg.values)
+                    if len(self.times) != len(vals):
+                        nval = len(vals)
+                        self.setnumplots(nval)
+                        self.times = [deque(maxlen=self.spin_var.get()) for _ in range(nval)]
+                        self.values = [deque(maxlen=self.spin_var.get()) for _ in range(nval)]
 
-                for i in range(len(vals)):
-                    self.times[i].append(ts - self.t0)
-                    self.values[i].append(vals[i])
+                    for i in range(len(vals)):
+                        self.times[i].append(ts - self.t0)
+                        self.values[i].append(vals[i])
 
-                got += 1
+                    t_last = ts - self.t0
+                    got_values += 1
                 #print(f"Received: {vals} at {ts}")
             except asyncio.QueueEmpty:
                 break
 
-        if got == 0:
-            return tuple(self.lines)
+        if got_values > 0:
+            self.samples_received_var.set(self.samples_received_var.get() + got_values)
 
-        for i, (line, ax) in enumerate(zip(self.lines, self.axes.flat)):
-            line.set_data(self.times[i], self.values[i])
-            if len(self.times[i]) > 1:
-                t_last = self.times[i][-1]
-                ax.set_xlim(max(0, t_last - 10), t_last)
-            if len(self.values[i]) > 10:
-                ax.set_ylim(0, YMAX)
-            #ax.figure.canvas.draw_idle()
+            for i in range(len(self.lines)):
+                self.lines[i].set_data(self.times[i], self.values[i])
+                self.axes[i].set_xlim(max(0, t_last - 10), t_last)
+            
         return tuple(self.lines)
 
 def main():
     root = tk.Tk()
+    root.geometry("1000x1000+2000+0")
+
+    # Optional: Make sure the window is not resizable
+    root.resizable(False, False)
     app = LivePlotApp(root)
     # Exit the process when the window is closed
     root.protocol("WM_DELETE_WINDOW", root.quit)

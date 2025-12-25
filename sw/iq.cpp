@@ -29,12 +29,13 @@
 
 #include "Novatech409c.h"
 #include "message.pb.h"
+#include <algorithm>
 
 using namespace std;
 
 static volatile int keep_running = 1;
 
-static void handle_sigint(int sig) {
+static void handle_sigint(int) {
     keep_running = 0;
 }
 
@@ -109,6 +110,7 @@ public:
     struct sockaddr_in addr;
     int sock;
     std::string buffer;
+    iq_proto::plotData msg;
 
     udp_sender(string ip_addr) : ip(ip_addr) {
         dt = 1.0 / send_rate_hz;
@@ -134,12 +136,19 @@ public:
         signal(SIGTERM, handle_sigint);
     }
 
-    void send_data(const float* x, unsigned count) {
-        udp_example::plotData msg;
-        for (unsigned i = 0; i < count; ++i) {
-            msg.add_values(x[i]);
+    void send_data(const vector<float>& x) {
+        if(x.size() != (size_t)msg.values_size()) {
+            msg.clear_values();
+            for (unsigned i = 0; i < x.size(); ++i) {
+                msg.add_values(x[i]);
+            }
         }
-        
+        else {
+            // If the size matches, just update the existing values
+            for (unsigned i = 0; i < x.size(); ++i) {
+                msg.set_values(i, x[i]);
+            }
+        }
         if (!msg.SerializeToString(&buffer)) {
             std::cerr << "Failed to serialize message.\n";
             return;
@@ -150,6 +159,10 @@ public:
                         (struct sockaddr*)&addr, sizeof(addr));
         if (n < 0) {
             perror("sendto");
+        } else {
+            // Successfully sent
+            // printf("Sent %zd bytes to %s:%d\n", n, ip.c_str(), port);
+            // printf("%s\n", msg.DebugString().c_str());
         }
     }
     ~udp_sender() {
@@ -174,10 +187,15 @@ int main(int argc, char *argv[]) {
 
     // Set default values
     string udp_ip = config.count("udp_ip") ? config["udp_ip"] : "";
-    int udp_plot_channel0 = config.count("udp_plot_channel0") ? std::stoi(config["udp_plot_channel0"]) : -1;
-    int udp_plot_channel1 = config.count("udp_plot_channel1") ? std::stoi(config["udp_plot_channel1"]) : -1;
-    int udp_plot_channel2 = config.count("udp_plot_channel2") ? std::stoi(config["udp_plot_channel2"]) : -1;
-    int udp_plot_channel3 = config.count("udp_plot_channel3") ? std::stoi(config["udp_plot_channel3"]) : -1;
+    string udp_plot_channels_str = config.count("udp_plot_channels") ? config["udp_plot_channels"] : "";
+    vector<int> udp_plot_channels;
+    {
+        stringstream ss(udp_plot_channels_str);
+        string item;
+        while (getline(ss, item, ',')) {
+            udp_plot_channels.push_back(std::stoi(item));
+        }
+    }
 
     if(!udp_ip.empty()) {
         sender = new udp_sender(udp_ip);
@@ -258,6 +276,8 @@ int main(int argc, char *argv[]) {
     channel_names.push_back("signal3");
 
     vector<unsigned> channel_offsets(num_channels);
+    vector<bool> plot_channels(num_channels, false);
+    
 	vector<unsigned>  width = {4, 2, 2}; // initial width for NSAMP and VP-VN
     const unsigned read_offset = 0x20; // Base offset for reading channels
     vector<double> scale = {1, 0, 1.0 / ((1 << num_demod_channels) - 1)}; // initial scale for NSAMP and VP-VN
@@ -339,12 +359,18 @@ int main(int argc, char *argv[]) {
 
     for (size_t i = 0; i < num_channels; ++i) {
         int ch = channels_to_read[i];
+        if(std::find(udp_plot_channels.begin(), udp_plot_channels.end(), ch) != udp_plot_channels.end()) {
+            plot_channels[i] = true;
+        }
+
         if (0 == scale[ch]) {
             scale[ch] = 1.0;
             for(unsigned j=0; j<width[ch]; j++)
                 scale[ch] /= 256.0;
         }
-        printf("Channel[%2d] %s (index %d): scale = %g\n", ch, channel_names[ch].c_str(), i, scale[ch]);
+        printf("Channel[%2d] %s (index %d): scale = %g%s\n", 
+            ch, channel_names[ch].c_str(), i, scale[ch], 
+            plot_channels[i] ? " (UDP plot)" : "");
 
         for(int pc=0; pc<4; pc++) {
             if(channel_names[ch] == "PHASE" + to_string(pc)) {
@@ -407,6 +433,7 @@ int main(int argc, char *argv[]) {
     unsigned num_extra_channels = fLO.size(); // time_us, f1,...
     // Allocate a 1D array: data_buffer[sample * (num_channels + 1) + channel]
     unsigned *data_buffer = new unsigned[max_samples * (num_channels + num_extra_channels)];
+    vector<float> udp_x(udp_plot_channels.size(), 0.0f);
 
     for(unsigned ifile_idx=0; ifile_idx<num_files; ifile_idx++) {
         unsigned n = 0;
@@ -417,7 +444,6 @@ int main(int argc, char *argv[]) {
         
         unsigned us_next_dds_update = 10000;
 
-        float udp_x[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         while (n < nmax && us < tmax_ms * 1000) {
             clock_gettime(CLOCK_MONOTONIC, &stop);
             us = (stop.tv_sec - start.tv_sec) * 1000000 + (stop.tv_nsec - start.tv_nsec) / 1000;
@@ -430,6 +456,8 @@ int main(int argc, char *argv[]) {
             bool updated_dds = false;
 
             // Store time and raw values in the buffer
+            unsigned udp_idx = 0;
+
             data_buffer[n * (num_channels + num_extra_channels) + 0] = us;
             for (size_t i = 0; i < num_channels; ++i) {
                 int ch = channels_to_read[i];
@@ -490,23 +518,23 @@ int main(int argc, char *argv[]) {
                         data_buffer[n * (num_channels + num_extra_channels) + num_channels + j] = 
                             fLO[j] * 1000; // store f in mHz
                 }
-
-                if(ch == udp_plot_channel0) {
-                    udp_x[0] = data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] * scale[ch];
-                }
-                if(ch == udp_plot_channel1) {
-                    udp_x[1] = data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] * scale[ch];
-                }
-                if(ch == udp_plot_channel2) {
-                    udp_x[2] = data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] * scale[ch];
-                }
-                if(ch == udp_plot_channel3) {
-                    udp_x[3] = data_buffer[n * (num_channels + num_extra_channels) + (i + 1)] * scale[ch];
+                if(plot_channels[i]) {
+                    long x = data_buffer[n * (num_channels + num_extra_channels) + (i + 1)];
+                    // If the channel is bipolar, convert to signed integer
+                    if (bipolar[ch]) {
+                        if (width[ch] == 2 && x & 0x8000)
+                            x -= 0x10000;
+                        if (width[ch] == 4 && x & 0x80000000)
+                            x -= 0x100000000;
+                    }
+                    float value = x * scale[ch];
+                    udp_x[udp_idx++] = value;
+                    
                 }
             }
 
             if(sender) {
-                sender->send_data(udp_x, 4);
+                sender->send_data(udp_x);
             }
             if(updated_dds) {
                 us_next_dds_update += dds_update_interval_ms * 1000;

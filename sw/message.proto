@@ -1,0 +1,26 @@
+syntax = "proto3";
+option optimize_for = LITE_RUNTIME;
+
+package iq_proto;
+
+
+enum iq_message_type {
+    PLOT_DATA = 0; // Default value
+    CHANNEL_INFO = 1;
+}
+
+message channelInfo {
+   string name = 1;
+   float scale = 2;
+   float min = 3;
+   float max = 4;
+}
+
+message plotData {
+    repeated float values = 1;
+    repeated channelInfo ch_info = 2;
+}
+
+message iq_config {
+    optional int32 ref = 1;
+}

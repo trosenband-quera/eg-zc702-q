@@ -29,7 +29,7 @@ int main() {
     float B=2000;
     for(unsigned i = 0; i < 10000; ++i) {
         // Create and populate Protobuf message
-        udp_example::plotData msg;
+        iq_proto::plotData msg;
         msg.add_values(A+B*sin(i * 0.1f));
         msg.add_values(A+B*sin(i * 0.1f + 1.0f));
         msg.add_values(A+B*sin(i * 0.1f + 2.0f));

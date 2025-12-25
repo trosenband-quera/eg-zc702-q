@@ -32,7 +32,7 @@ LDFLAGS := -static -lm -lgcc
 default: iq
 
 iq: iq.cpp Novatech409c.cpp message.pb.cc message.pb.h
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) iq.cpp Novatech409c.cpp message.pb.cc -o $(SELF)  lib/libprotobuf-lite.a -latomic
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) iq.cpp Novatech409c.cpp message.pb.cc -o iq  lib/libprotobuf-lite.a -latomic
 
 proto: message.proto
 	$(PROTOC) --cpp_out=. --python_out=. message.proto
@@ -61,11 +61,9 @@ serial: serial_comm
 	scp serial_comm zc702:~/
 	ssh zc702 -C "chmod u+x ./serial_comm && ./serial_comm -d /dev/ttyUSB0 -m q -B"
 
-$(SELF): $(DEPS) Novatech409c.cpp
-
-.PHONY : bit
-bit:
-	$(MAKE) -C ../../vivado/iq_project bit
+.PHONY : fpgacfg
+fpgacfg:
+	$(MAKE) -C ../hw/iq_project fpgacfg
 
 # For this target to work you need to have ssh setup appropriately using
 # ~/.ssh/config on the host.
@@ -78,49 +76,32 @@ bit:
 #		LogLevel QUIET
 .PHONY : transfer
 transfer: default
-	scp $(SELF) iq_config*.txt zc702:~/
+	scp iq iq_config*.txt zc702:~/
 
-# configure FPGA for Xilinx 2025.1 tools
-.PHONY: fpgacfg
-fpgacfg:
-	cp ../../vivado/iq_project/top.bit .
-	bootgen -w -image bitstream.bif -arch zynq -process_bitstream bin
-	ssh zc702 -C "mkdir -p /lib/firmware"
-	scp top.bit.bin zc702:/lib/firmware
-	ssh zc702 -C "echo 0 > /sys/class/fpga_manager/fpga0/flags"
-	ssh zc702 -C "echo top.bit.bin > /sys/class/fpga_manager/fpga0/firmware"
-
-# configure FPGA for Xilinx 2018.2 tools
-.PHONY: xdevcfg
-xdevcfg:
-	cp ../../vivado/iq_project/iq-demod-zynq/iq-demod-zynq.runs/impl_1/top_wrapper.bit pl.bit
-	scp pl.bit.bin zc702:~/
-	ssh zc702 -C "cat pl.bit > /dev/xdevcfg"
-	
 .PHONY : run
 run: transfer
-	ssh zc702 -C "./$(SELF)"
+	ssh zc702 -C "./iq"
 
 .PHONY : getdata
 getdata: transfer
-	ssh zc702 -C "./$(SELF) iq_config.txt"
-	scp zc702:~/0_1.csv .
-	python3 plot_csv.py 0_1.csv
+	ssh zc702 -C "./iq iq_config.txt"
+	scp zc702:~/0_1.csv data/
+	python3 plot_csv.py data/0_1.csv
 
 .PHONY : live
 live: transfer
-	ssh zc702 -C "./$(SELF) iq_config_live.txt"
+	ssh zc702 -C "./iq iq_config_live.txt"
 
 .PHONY : gethist
 gethist:
-	ssh zc702 -C "./$(SELF) -c 0,1 -s -q -f 1.csv -n 2000 -m 1"
+	ssh zc702 -C "./iq -c 0,1 -s -q -f 1.csv -n 2000 -m 1"
 	scp zc702:~/1.csv .
 	python3 plot_csv.py 1.csv --hist-raw
 
 .PHONY : clean
 clean:
 	-rm -f *.o *.bit *.csv
-	-rm -f $(SELF) serial_comm udpsend udpsend2
+	-rm -f iq serial_comm udpsend udpsend2
 
 # List all Make targets.
 .PHONY : list
