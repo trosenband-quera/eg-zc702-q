@@ -22,7 +22,7 @@ YMAX = 5000  # fixed y-axis max value
 # -----------------------------
 # Asyncio UDP receiver
 # -----------------------------
-class UdpFloatReceiver(asyncio.DatagramProtocol):
+class UdpReceiver(asyncio.DatagramProtocol):
     def __init__(self, q: asyncio.Queue):
         self.q = q
 
@@ -53,7 +53,7 @@ class UdpFloatReceiver(asyncio.DatagramProtocol):
 async def udp_server(q: asyncio.Queue):
     loop = asyncio.get_running_loop()
     transport, protocol = await loop.create_datagram_endpoint(
-        lambda: UdpFloatReceiver(q),
+        lambda: UdpReceiver(q),
         local_addr=(UDP_IP, UDP_PORT),
         reuse_port=True
     )
@@ -118,7 +118,7 @@ class LivePlotApp:
         self.times = [deque(t, maxlen=max_points) for t in self.times]
         self.values = [deque(v, maxlen=max_points) for v in self.values]
 
-    def setnumplots(self, n):
+    def setnumplots(self, n, titles=None, minmax=None):
         # Matplotlib Figure: n subplots
         if n>4:
             nrows = 4
@@ -145,12 +145,11 @@ class LivePlotApp:
                 self.axes[ival] = ax
 
                 line, = ax.plot([], [], lw=1.5)
-                title = f"Signal {ival}"
+                title = f"Signal {ival}" if titles is None else titles[ival]
                 ax.set_title(title)
                 
 
                 self.lines[ival] = line
-                ival += 1
 
                 if ival >= n or r+1 == nrows:
                     ax.set_xlabel("Time (s)")
@@ -158,44 +157,62 @@ class LivePlotApp:
                     ax.set_xticklabels([])
 
                 ax.set_xlim(0, 10)
-                ax.set_ylim(0, YMAX)
+                if minmax is not None:
+                    ax.set_ylim(minmax[ival], minmax[ival+len(minmax)//2])
+                else:
+                    ax.set_ylim(0, YMAX)
+
                 ax.grid(True)
                 ax.figure.canvas.draw_idle()
                 print(f"Created plot {iplot}, rows={nrows}, cols={ncols}, title={title}")
+                ival += 1
 
         return tuple(self.lines)
 
     def update(self, _frame):
         got_values = 0
+        ts = None
         while True:
             try:
                 ts, msg = self.q.get_nowait()
+                if msg.ch_info:
+                    self.update_channel_info(msg.ch_info)
                 if msg.values:
-                    vals = list(msg.values)
-                    if len(self.times) != len(vals):
-                        nval = len(vals)
-                        self.setnumplots(nval)
-                        self.times = [deque(maxlen=self.spin_var.get()) for _ in range(nval)]
-                        self.values = [deque(maxlen=self.spin_var.get()) for _ in range(nval)]
-
-                    for i in range(len(vals)):
-                        self.times[i].append(ts - self.t0)
-                        self.values[i].append(vals[i])
-
-                    t_last = ts - self.t0
-                    got_values += 1
-                #print(f"Received: {vals} at {ts}")
+                    self.update_values(list(msg.values), ts)
+                
             except asyncio.QueueEmpty:
                 break
 
-        if got_values > 0:
-            self.samples_received_var.set(self.samples_received_var.get() + got_values)
-
-            for i in range(len(self.lines)):
-                self.lines[i].set_data(self.times[i], self.values[i])
+        for i in range(len(self.lines)):
+            self.lines[i].set_data(self.times[i], self.values[i])
+            if ts is not None and self.times[i]:
+                t_last = ts - self.t0
                 self.axes[i].set_xlim(max(0, t_last - 10), t_last)
-            
+
         return tuple(self.lines)
+       
+    def update_channel_info(self, channel_info):
+        nval = len(channel_info)
+        if len(self.times) != nval:
+            titles = [ci.name for ci in channel_info]
+            minmax = [ci.min for ci in channel_info] + [ci.max for ci in channel_info]
+            print(f"Updating channel info: {titles}, minmax={minmax}")
+            self.setnumplots(nval, titles=titles, minmax=minmax)
+            self.times = [deque(maxlen=self.spin_var.get()) for _ in range(nval)]
+            self.values = [deque(maxlen=self.spin_var.get()) for _ in range(nval)]
+
+    def update_values(self, vals, ts):
+        if len(self.times) != len(vals):
+            nval = len(vals)
+            self.setnumplots(nval)
+            self.times = [deque(maxlen=self.spin_var.get()) for _ in range(nval)]
+            self.values = [deque(maxlen=self.spin_var.get()) for _ in range(nval)]
+
+        for i in range(len(vals)):
+            self.times[i].append(ts - self.t0)
+            self.values[i].append(vals[i])
+
+        self.samples_received_var.set(self.samples_received_var.get() + 1)
 
 def main():
     root = tk.Tk()

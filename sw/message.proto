@@ -12,8 +12,10 @@ enum iq_message_type {
 message channelInfo {
    string name = 1;
    float scale = 2;
-   float min = 3;
-   float max = 4;
+   bool bipolar = 3;
+   int32 width = 4;
+   float min = 5;
+   float max = 6;
 }
 
 message plotData {

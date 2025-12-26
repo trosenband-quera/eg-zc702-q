@@ -27,7 +27,7 @@ int main() {
     std::string buffer;
     float A=2500;
     float B=2000;
-    for(unsigned i = 0; i < 10000; ++i) {
+    for(unsigned i = 0; i < 1000; ++i) {
         // Create and populate Protobuf message
         iq_proto::plotData msg;
         msg.add_values(A+B*sin(i * 0.1f));

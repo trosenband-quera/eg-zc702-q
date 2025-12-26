@@ -90,9 +90,9 @@ unsigned set_frequency(volatile void *map_base, unsigned channel, double freq_Hz
     const double SAMPLE_RATE_HZ = 1e6 * 25 / 26.0;
     double phase_inc_d = 65536.0 * 65536.0 * freq_Hz / SAMPLE_RATE_HZ;
     unsigned phase_inc = 0.5 + phase_inc_d;
-    double freq_Hz_true = phase_inc * SAMPLE_RATE_HZ / 65536.0 / 65536.0;
-
+    
     if (verbose) {
+        double freq_Hz_true = phase_inc * SAMPLE_RATE_HZ / 65536.0 / 65536.0;
         printf("LO %d, target = %.3f Hz, true = %.6f Hz, phase delta = %.3f\n", channel, freq_Hz, freq_Hz_true, phase_inc_d);
     }
 
@@ -110,7 +110,7 @@ public:
     struct sockaddr_in addr;
     int sock;
     std::string buffer;
-    iq_proto::plotData msg;
+    iq_proto::plotData data_msg;
 
     udp_sender(string ip_addr) : ip(ip_addr) {
         dt = 1.0 / send_rate_hz;
@@ -137,19 +137,19 @@ public:
     }
 
     void send_data(const vector<float>& x) {
-        if(x.size() != (size_t)msg.values_size()) {
-            msg.clear_values();
+        if(x.size() != (size_t)data_msg.values_size()) {
+            data_msg.clear_values();
             for (unsigned i = 0; i < x.size(); ++i) {
-                msg.add_values(x[i]);
+                data_msg.add_values(x[i]);
             }
         }
         else {
             // If the size matches, just update the existing values
             for (unsigned i = 0; i < x.size(); ++i) {
-                msg.set_values(i, x[i]);
+                data_msg.set_values(i, x[i]);
             }
         }
-        if (!msg.SerializeToString(&buffer)) {
+        if (!data_msg.SerializeToString(&buffer)) {
             std::cerr << "Failed to serialize message.\n";
             return;
         }
@@ -162,7 +162,25 @@ public:
         } else {
             // Successfully sent
             // printf("Sent %zd bytes to %s:%d\n", n, ip.c_str(), port);
-            // printf("%s\n", msg.DebugString().c_str());
+            // printf("%s\n", data_msg.DebugString().c_str());
+        }
+    }
+
+    void send_channel_info(const iq_proto::plotData& info_msg) {
+        if (!info_msg.SerializeToString(&buffer)) {
+            std::cerr << "Failed to serialize message.\n";
+            return;
+        }
+
+        // Send
+        ssize_t n = sendto(sock, buffer.data(), buffer.size(), 0,
+                        (struct sockaddr*)&addr, sizeof(addr));
+        if (n < 0) {
+            perror("sendto");
+        } else {
+            // Successfully sent
+            // printf("Sent %zd bytes to %s:%d\n", n, ip.c_str(), port);
+            // printf("%s\n", data_msg.DebugString().c_str());
         }
     }
     ~udp_sender() {
@@ -356,17 +374,37 @@ int main(int argc, char *argv[]) {
 	// get scale from width if 0
     num_channels = channels_to_read.size();
     vector<int> phase_channels(4, -1);
-
+    iq_proto::plotData info_msg;
     for (size_t i = 0; i < num_channels; ++i) {
         int ch = channels_to_read[i];
-        if(std::find(udp_plot_channels.begin(), udp_plot_channels.end(), ch) != udp_plot_channels.end()) {
-            plot_channels[i] = true;
-        }
 
         if (0 == scale[ch]) {
             scale[ch] = 1.0;
             for(unsigned j=0; j<width[ch]; j++)
                 scale[ch] /= 256.0;
+        }
+        
+        if(std::find(udp_plot_channels.begin(), udp_plot_channels.end(), ch) != udp_plot_channels.end()) {
+            plot_channels[i] = true;
+            iq_proto::channelInfo* ch_info = info_msg.add_ch_info();
+            ch_info->set_name(channel_names[ch]);
+            ch_info->set_scale(1); //scale[ch]);
+            ch_info->set_bipolar(bipolar[ch]);
+            ch_info->set_width(width[ch]);
+            if(channel_names[ch].find("signal") != string::npos){
+                ch_info->set_min(0);
+                ch_info->set_max(5000);
+            }
+            else if(channel_names[ch].find("PHASE") != string::npos) {
+                ch_info->set_min(-0.1);
+                ch_info->set_max(0.1);
+            }
+            else {
+                double min_val = bipolar[ch] ? -scale[ch]*((1ULL << (width[ch]*8 - 1)) - 1) : 0;
+                double max_val = scale[ch]*((1ULL << (width[ch]*8 - (bipolar[ch] ? 1 : 0))) - 1);
+                ch_info->set_min(min_val);
+                ch_info->set_max(max_val);
+            }
         }
         printf("Channel[%2d] %s (index %d): scale = %g%s\n", 
             ch, channel_names[ch].c_str(), i, scale[ch], 
@@ -380,6 +418,8 @@ int main(int argc, char *argv[]) {
         }
     }
 	
+    sender->send_channel_info(info_msg);
+
     int sleepval = ms * 1000;
     long us0 = 0;
 	
