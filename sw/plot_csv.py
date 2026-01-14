@@ -123,7 +123,7 @@ def plot_csv(filename, hist_raw=False):
             offset = 0
             lbl = header[i]
 
-            if 'f' in header[i].lower()[0:1]:
+            if 'fLO_' in header[i] or 'fDDS_' in header[i]:
                 offset = np.median(arr[:, i])
                 lbl += f" [Hz] (offset {offset:.2f})"
                 

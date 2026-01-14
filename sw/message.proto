@@ -16,6 +16,7 @@ message channelInfo {
    int32 width = 4;
    float min = 5;
    float max = 6;
+   int32 index = 7;
 }
 
 message plotData {
