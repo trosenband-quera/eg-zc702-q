@@ -88,6 +88,12 @@ getdata: transfer
 	scp zc702:~/0_1.csv data/
 	python3 plot_csv.py data/0_1.csv
 
+.PHONY : nolock
+nolock: transfer
+	ssh zc702 -C "./iq iq_config_nolock.txt"
+	scp zc702:~/0_2.csv data/
+	python3 plot_csv.py data/0_2.csv
+
 .PHONY : live
 live: transfer
 	ssh zc702 -C "./iq iq_config_live.txt"

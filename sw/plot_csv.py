@@ -96,7 +96,7 @@ def plot_csv(filename, hist_raw=False):
         if 'phase' in header[i].lower():
             lw = 2
             offset = np.median(arr[:, i])
-            lbl += f" [rad]  (offset {offset:.2f})"
+            lbl += f" [rad]  (offset {offset:.2f}, RMS {np.std(arr[:, i]):.4f})"
             scatter = True
 
         ax.plot(time, arr[:, i] - offset, label=lbl, linewidth=lw)
