@@ -1,0 +1,28 @@
+mkdir -p ../thirdparty
+cd ../thirdparty
+
+NAME=msgpack-c
+VERSION=6.1.1
+DEST=`pwd`/usr
+
+set -e
+
+if [ ! -d "$NAME" ]; then
+  git clone https://github.com/msgpack/msgpack-c.git
+fi
+
+cd $NAME
+
+git tag -l
+
+git checkout cpp-$VERSION
+
+./autogen.sh
+
+./configure --host=arm-linux-gnueabihf --prefix=$DEST
+
+make clean
+
+make -j 8
+
+make install

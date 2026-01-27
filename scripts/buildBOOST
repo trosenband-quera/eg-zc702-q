@@ -1,0 +1,50 @@
+mkdir -p ../thirdparty
+cd ../thirdparty
+
+NAME=boost
+VERSION=1.90.0
+NAMEV=$NAME-$VERSION
+DL=$NAMEV-b2-nodocs.tar.gz
+CROSS=arm-linux-gnueabihf
+
+DEST=`pwd`/usr
+
+set -e
+
+echo $DL
+
+if [ ! -f "$DL" ]; then
+  wget https://github.com/boostorg/boost/releases/download/$NAMEV/$DL
+else
+  if [ ! -d "$NAMEV" ]; then
+    tar xvzf $DL
+  fi
+  
+  ln -sfr $NAMEV $NAME
+fi
+
+cd $NAME
+if [ ! -f "b2" ]; then
+  ./bootstrap.sh
+fi
+
+# make .jam file
+JAM=$HOME/user-config.jam
+GPP=`which $CROSS-g++`
+
+echo "using gcc : arm : $GPP :" > $JAM
+echo " <compileflags>--sysroot=\"$DEST\" " >> $JAM
+echo " <compileflags>-std=c++11" >> $JAM
+echo " <linkflags>--sysroot=\"$DEST\" ;" >> $JAM
+
+echo "wrote .jam file $JAM"
+cat $JAM
+
+echo "BUILDING via b2"
+./b2 --toolset=gcc-arm \
+    --address-model=32 \
+    --architecture=zc702-arm \
+    --stagedir=$DEST \
+    --without-python --variant=release
+
+./b2 install --prefix=$DEST

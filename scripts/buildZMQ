@@ -1,0 +1,26 @@
+mkdir -p ../thirdparty
+cd ../thirdparty
+
+NAME=libzmq
+VERSION=4.3.5
+DEST=`pwd`/usr
+
+set -e
+
+if [ ! -d "$NAME" ]; then
+  git clone https://github.com/zeromq/libzmq.git
+fi
+
+cd $NAME
+
+git checkout v$VERSION
+
+./autogen.sh
+
+./configure --host=arm-linux-gnueabihf --prefix=$DEST
+
+make clean
+
+make -j 8
+
+make install
