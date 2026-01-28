@@ -14,6 +14,12 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.animation import FuncAnimation
 
 import message_pb2
+import socket
+# -----------------------------
+# Configuration
+# -----------------------------
+TCP_IP = '127.0.0.1'  # TODO: set to your server IP
+TCP_PORT = 60000      # TODO: set to your server port
 # -----------------------------
 UDP_IP = "0.0.0.0"   # listen on all interfaces
 UDP_PORT = 50000
@@ -82,20 +88,48 @@ class LivePlotApp:
         self.q = asyncio.Queue(maxsize=10000)
         start_event_loop_in_thread(self.q)
 
+
+        # Controls frame for horizontal layout
+        controls_frame = ttk.Frame(root)
+        controls_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=5)
+        icol = 0
+
         # Spinbox for adjusting MAX_POINTS
+        spin_label = ttk.Label(controls_frame, text="Max Points")
+        spin_label.grid(row=0, column=icol, padx=5)
+        icol += 1
+        
         self.spin_var = tk.IntVar(value=MAX_POINTS)
-        spinbox = ttk.Spinbox(root, from_=100, to=20000, increment=100, textvariable=self.spin_var, width=8)
-        spinbox.pack(side=tk.TOP, padx=10, pady=5)
-        spin_label = ttk.Label(root, text="Max Points")
-        spin_label.pack(side=tk.TOP, padx=10, pady=5)
+        spinbox = ttk.Spinbox(controls_frame, from_=100, to=20000, increment=100, textvariable=self.spin_var, width=8)
+        spinbox.grid(row=0, column=icol, padx=5)
+        icol += 1
+
+        
+        # Divider
+        sep = ttk.Separator(controls_frame, orient='vertical')
+        sep.grid(row=0, column=icol, sticky='ns', padx=2)
+        icol += 1
 
         # Label for number of samples received
+        samples_caption = ttk.Label(controls_frame, text="Samples received")
+        samples_caption.grid(row=0, column=icol, padx=5)        
+        icol += 1
+        
         self.samples_received_var = tk.IntVar(value=0)
-        samples_label = ttk.Label(root, textvariable=self.samples_received_var, font=("TkDefaultFont", 12, "bold"))
-        samples_label.pack(side=tk.TOP, padx=10, pady=5)
-        samples_caption = ttk.Label(root, text="Samples received")
-        samples_caption.pack(side=tk.TOP, padx=10, pady=5)
+        samples_label = ttk.Label(controls_frame, textvariable=self.samples_received_var, font=("TkDefaultFont", 12, "bold"))
+        samples_label.grid(row=0, column=icol, padx=5)
+        icol += 1
+        
+        # Divider
+        sep = ttk.Separator(controls_frame, orient='vertical')
+        sep.grid(row=0, column=icol, sticky='ns', padx=2)
+        icol += 1
 
+        # Run/Pause button
+        self.paused = False
+        self.run_pause_btn = ttk.Button(controls_frame, text="PAUSE", command=self.toggle_run_pause)
+        self.run_pause_btn.grid(row=0, column=icol, padx=5)
+        icol += 1
         self.times = [deque(maxlen=self.spin_var.get())]
         self.values = [deque(maxlen=self.spin_var.get())]
         self.t0 = time.time()
@@ -112,6 +146,19 @@ class LivePlotApp:
         self.axes = []
         self.ani = FuncAnimation(self.fig, self.update,
                                  interval=20, blit=True, cache_frame_data=False)
+
+    def toggle_run_pause(self):
+        self.paused = not self.paused
+        self.run_pause_btn.config(text="RUN" if self.paused else "PAUSE")
+        self.send_pause_tcp_message()
+
+    def send_pause_tcp_message(self):
+        MESSAGE = b'PAUSED' if self.paused else b'RUN'   # TODO: set to your desired message
+        try:
+            with socket.create_connection((TCP_IP, TCP_PORT), timeout=2) as sock:
+                sock.sendall(MESSAGE)
+        except Exception as e:
+            print(f"Failed to send TCP pause message: {e}")
 
     def update_max_points(self, *args):
         max_points = self.spin_var.get()
@@ -179,7 +226,6 @@ class LivePlotApp:
                     self.update_channel_info(msg.ch_info)
                 if msg.values:
                     self.update_values(list(msg.values), ts)
-                
             except asyncio.QueueEmpty:
                 break
 

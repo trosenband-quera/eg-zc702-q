@@ -30,6 +30,7 @@
 #include "Novatech409c.h"
 #include "message.pb.h"
 #include <algorithm>
+#include <google/protobuf/text_format.h>
 
 using namespace std;
 
@@ -200,6 +201,26 @@ int main(int argc, char *argv[]) {
         config_file = argv[1]; // use first argument as config file name
     }
 
+    // Read protobuf config from text format if available
+    iq_proto::demodulator_config config_pb;
+    bool config_pb_loaded = false;
+    std::string config_pb_path = "config.pb.txt"; // default text protobuf config file
+    if (argc > 2) {
+        config_pb_path = argv[2];
+    }
+    std::ifstream pbfile(config_pb_path);
+    if (pbfile.is_open()) {
+        std::string pbdata((std::istreambuf_iterator<char>(pbfile)), std::istreambuf_iterator<char>());
+        if (google::protobuf::TextFormat::ParseFromString(pbdata, &config_pb)) {
+            config_pb_loaded = true;
+            std::cout << "Loaded protobuf config (text): " << config_pb.DebugString() << std::endl;
+        } else {
+            std::cerr << "Failed to parse text protobuf config file: " << config_pb_path << std::endl;
+        }
+    } else {
+        std::cerr << "Could not open text protobuf config file: " << config_pb_path << std::endl;
+    }
+
     // Read configuration
     map<string, string> config = read_config(config_file);
 
@@ -221,13 +242,22 @@ int main(int argc, char *argv[]) {
         // Example: send 4 floats (remove or move this to your data loop as needed)
         // sender->send_data4(1.1f, 2.2f, 3.3f, 4.4f);
     }
-    int reference_ch = config.count("ref") ? std::stoi(config["ref"]) : -1;
-    unsigned nmax = config.count("nmax") ? std::stoul(config["nmax"]) : 10;
+
+    //default parameters
+    {
+        if(!config_pb_loaded) {
+            if(!config_pb.has_ref()) config_pb.set_ref(-1);
+            if(!config_pb.has_quiet()) config_pb.set_quiet(0);
+            if(!config_pb.has_nmax()) config_pb.set_nmax(10);
+        }
+    }
+    int reference_ch = config_pb.ref();
+    unsigned nmax = config_pb.nmax();
     double t0_ms = config.count("t0_ms") ? std::stod(config["t0_ms"]) : 0.0;
     double tmax_ms = config.count("tmax_ms") ? std::stod(config["tmax_ms"]) : 1.0;
     int showraw = config.count("showraw") ? std::stoi(config["showraw"]) : 1;
     int showscaled = config.count("showscaled") ? std::stoi(config["showscaled"]) : 0;
-    int quiet = config.count("quiet") ? std::stoi(config["quiet"]) : 0;
+    int quiet = config_pb.quiet();
     double ms = config.count("ms") ? std::stod(config["ms"]) : 5;
     double ms0 = config.count("ms0") ? std::stod(config["ms0"]) : 0.0;
     std::string csv_filename = config.count("csv_filename") ? config["csv_filename"] : "";
@@ -238,6 +268,7 @@ int main(int argc, char *argv[]) {
     std::string freqsLO_str = config.count("freqsLO") ? config["freqsLO"] : "100000,112500";
     std::string freqDDS_str = config.count("freqsDDS") ? config["freqsDDS"] : "100000,112500";
     std::string dds_device = config.count("dds_device") ? config["dds_device"] : "";
+    int dds_baudrate = config.count("dds_baudrate") ? std::stoi(config["dds_baudrate"]) : 115200;
     double kp_dds = config.count("kp_dds") ? std::stod(config["kp_dds"]) : 0.0;
     double ki_dds = config.count("ki_dds") ? std::stod(config["ki_dds"]) : 0.0;
     double dds_update_interval_ms = config.count("dds_update_interval_ms") ? 
@@ -245,7 +276,7 @@ int main(int argc, char *argv[]) {
     unsigned num_files = config.count("num_files") ? std::stoul(config["num_files"]) : 1;
     Novatech409c* dds = nullptr;
     if(!dds_device.empty()) {
-        dds = new Novatech409c(dds_device, 115200);
+        dds = new Novatech409c(dds_device, dds_baudrate);
         dds->echo(false);
     }
 

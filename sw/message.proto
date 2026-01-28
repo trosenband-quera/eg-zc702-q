@@ -1,5 +1,5 @@
 syntax = "proto3";
-option optimize_for = LITE_RUNTIME;
+// option optimize_for = LITE_RUNTIME;
 
 package iq_proto;
 
@@ -7,6 +7,11 @@ package iq_proto;
 enum iq_message_type {
     PLOT_DATA = 0; // Default value
     CHANNEL_INFO = 1;
+}
+
+enum iq_commands {
+    RUN = 0; // Default value
+    STOP = 1;
 }
 
 message channelInfo {
@@ -24,6 +29,13 @@ message plotData {
     repeated channelInfo ch_info = 2;
 }
 
-message iq_config {
-    optional int32 ref = 1;
+message iq_command {
+    iq_commands cmd = 1;
 }
+
+message demodulator_config {
+    optional int32 ref = 1;
+    optional int32 quiet = 2;
+    optional int32 nmax = 3;
+}
+

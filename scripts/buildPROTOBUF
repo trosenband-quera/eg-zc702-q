@@ -2,6 +2,7 @@ mkdir -p ../thirdparty
 cd ../thirdparty
 
 VERSION=3.19.0
+DEST=`pwd`/usr/local
 
 set -e
 
@@ -22,6 +23,7 @@ fi
 
 ./autogen.sh
 
-./configure --host=arm-linux-gnueabihf --with-protoc=./protoc-$VERSION/bin/protoc 
+./configure --host=arm-linux-gnueabihf --with-protoc=./protoc-$VERSION/bin/protoc --prefix=$DEST
 
 make -j 8
+make install

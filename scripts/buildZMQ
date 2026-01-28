@@ -3,7 +3,7 @@ cd ../thirdparty
 
 NAME=libzmq
 VERSION=4.3.5
-DEST=`pwd`/usr
+DEST=`pwd`/usr/local
 
 set -e
 

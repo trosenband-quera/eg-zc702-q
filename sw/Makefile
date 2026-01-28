@@ -17,13 +17,15 @@ PROTOC := protoc
 
 # More warnings.
 CFLAGS := -Wall -Wextra
-CXXFLAGS := -Wall -Wextra -Wno-psabi  -O2  -Iinclude/ #-g -O1 -gdwarf-4
+CXXFLAGS := -Wall -Wextra -Wno-psabi  -O2  -Iinclude/ \
+            -Wl,--rpath=/newglibc \
+			-Wl,--dynamic-linker=/newglibc/ld-linux-armhf.so.3#-g -O1 -gdwarf-4
 
 # The minimal linux does not have shared libraries to dynamically link to so
 # executable must be statically linked.
 # Otherwise, when running ./foo you get an error like:
 #	-sh: ./foo: No such file or directory
-LDFLAGS := -static -lm -lgcc
+LDFLAGS := -lm -lgcc -L./lib -static
 
 # Link to libraries.
 #LDLIBS := -lm
@@ -32,7 +34,11 @@ LDFLAGS := -static -lm -lgcc
 default: iq
 
 iq: iq.cpp Novatech409c.cpp message.pb.cc message.pb.h
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) iq.cpp Novatech409c.cpp message.pb.cc -o iq  lib/libprotobuf-lite.a -latomic
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) iq.cpp Novatech409c.cpp message.pb.cc -o iq -lprotobuf -latomic
+
+ppstep: ppstep.cpp
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) ppstep.cpp -o ppstep ./lib/libzmq.a ./lib/libmsgpack-c.a
+	scp ppstep zc702:~/
 
 proto: message.proto
 	$(PROTOC) --cpp_out=. --python_out=. message.proto
@@ -44,7 +50,7 @@ udpsend: udpsend.cpp
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) udpsend.cpp -o udpsend
 
 udpsend2: udpsend2.cpp message.pb.cc message.pb.h
-	$(CXX) $(CXXFLAGS) $(LDFLAGS)  udpsend2.cpp message.pb.cc -o udpsend2  lib/libprotobuf-lite.a -latomic
+	$(CXX) $(CXXFLAGS) $(LDFLAGS)  udpsend2.cpp message.pb.cc -o udpsend2  -lprotobuf -latomic
 
 .PHONY : udp
 udp: udpsend
@@ -64,6 +70,7 @@ serial: serial_comm
 .PHONY : fpgacfg
 fpgacfg:
 	$(MAKE) -C ../hw/iq_project fpgacfg
+	scp ../thirdparty/protobuf/src/.libs/libprotobuf.so zc702:/usr/local/lib/
 
 # For this target to work you need to have ssh setup appropriately using
 # ~/.ssh/config on the host.
@@ -75,8 +82,12 @@ fpgacfg:
 #		UserKnownHostsFile /dev/null
 #		LogLevel QUIET
 .PHONY : transfer
-transfer: default
-	scp iq iq_config*.txt zc702:~/
+transfer: default ppstep
+	scp iq iq_config*.txt config.pb.txt ppstep zc702:~/
+
+.PHONY : transferlibs
+transferlibs:
+	scp lib/libprotobuf.so lib/libzmq.so.5 zc702:/usr/lib/
 
 .PHONY : run
 run: transfer
@@ -107,7 +118,7 @@ gethist:
 .PHONY : clean
 clean:
 	-rm -f *.o *.bit *.csv
-	-rm -f iq serial_comm udpsend udpsend2
+	-rm -f iq serial_comm udpsend udpsend2 ppstep
 
 # List all Make targets.
 .PHONY : list
