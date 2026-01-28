@@ -25,7 +25,7 @@ CXXFLAGS := -Wall -Wextra -Wno-psabi  -O2  -Iinclude/ \
 # executable must be statically linked.
 # Otherwise, when running ./foo you get an error like:
 #	-sh: ./foo: No such file or directory
-LDFLAGS := -lm -lgcc -L./lib -static
+LDFLAGS := -lm -lgcc -L./lib
 
 # Link to libraries.
 #LDLIBS := -lm
@@ -37,8 +37,13 @@ iq: iq.cpp Novatech409c.cpp message.pb.cc message.pb.h
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) iq.cpp Novatech409c.cpp message.pb.cc -o iq -lprotobuf -latomic
 
 ppstep: ppstep.cpp
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) ppstep.cpp -o ppstep ./lib/libzmq.a ./lib/libmsgpack-c.a
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) ppstep.cpp -o ppstep -lzmq -lpthread -lmsgpack-c -lrt
 	scp ppstep zc702:~/
+	ssh zc702 -C "chmod u+x ./ppstep"
+	
+.PHONY : pp
+pp: ppstep
+	ssh zc702 -C "./ppstep -h || ./ppstep -u tcp://10.0.0.111:8710 -n 100"
 
 proto: message.proto
 	$(PROTOC) --cpp_out=. --python_out=. message.proto
@@ -87,7 +92,7 @@ transfer: default ppstep
 
 .PHONY : transferlibs
 transferlibs:
-	scp lib/libprotobuf.so lib/libzmq.so.5 zc702:/usr/lib/
+	scp lib/libmsgpack-c.so.2 lib/libprotobuf.so lib/libzmq.so.5 zc702:/usr/lib/
 
 .PHONY : run
 run: transfer

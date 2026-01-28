@@ -9,9 +9,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <sys/time.h>
 
 using namespace std;
-string url = "tcp://10.0.0.111:8710";
 
 void send_packed_request(void* requester, msgpack_sbuffer* sbuf, bool print_debug = false) {
     // Print message bytes (request)
@@ -35,12 +35,14 @@ void send_packed_request(void* requester, msgpack_sbuffer* sbuf, bool print_debu
 
     // Send serialized buffer
     zmq_send(requester, sbuf->data, sbuf->size, 0);
-    printf("Sent msgpack request (%zu bytes)\n", sbuf->size);
+    if(print_debug)
+        printf("Sent msgpack request (%zu bytes)\n", sbuf->size);
 
     // Receive reply
     char buffer[1024];
     int recv_size = zmq_recv(requester, buffer, sizeof(buffer), 0);
-    printf("Received reply (%d bytes)\n", recv_size);
+    if(print_debug)
+        printf("Received reply (%d bytes)\n", recv_size);
 
     // Unpack reply as map
     //unpack_reply(buffer, recv_size);
@@ -50,9 +52,12 @@ void send_packed_request(void* requester, msgpack_sbuffer* sbuf, bool print_debu
     msgpack_unpack_return ret = msgpack_unpack_next(&msg, buffer, recv_size, NULL);
 
     /* prints the deserialized object. */
-    msgpack_object obj = msg.data;
-    msgpack_object_print(stdout, obj);
-    printf("\n");
+    if(print_debug) {
+        msgpack_object obj = msg.data;
+        msgpack_object_print(stdout, obj);
+        printf("\n");
+    }
+
     msgpack_unpacked_destroy(&msg);
 }
 
@@ -81,8 +86,8 @@ void pack_ints(msgpack_packer* pk, const std::vector<int>& values, bool as_array
 }
 
 void call_method(void* requester, const string& method_name, bool empty_data = false, bool print_debug = true) {
-
-    printf("Serializing and sending %s request...\n", method_name.c_str());
+    if(print_debug)
+        printf("Serializing and sending %s request...\n", method_name.c_str());
 
     // Prepare msgpack buffer and packer
     msgpack_sbuffer sbuf;
@@ -100,13 +105,14 @@ void call_method(void* requester, const string& method_name, bool empty_data = f
     }
 
     // Send serialized buffer
-    send_packed_request(requester, &sbuf, false);
+    send_packed_request(requester, &sbuf, print_debug);
     msgpack_sbuffer_destroy(&sbuf);
 }
 
 void ppoly(msgpack_packer& pk, const string& channel, int n, 
            const vector<vector<float>>& values, bool print_debug = true) {
-    printf("Adding ppoly request...\n");
+    if(print_debug)
+        printf("Adding ppoly request...\n");
 
     msgpack_pack_array(&pk, 2);
     pack_str(&pk, "ppoly");
@@ -123,7 +129,8 @@ void ppoly(msgpack_packer& pk, const string& channel, int n,
 }
 
 void sequence(void* requester, bool print_debug = true) {
-    printf("Serializing and sending sequence request...\n");
+    if(print_debug)
+        printf("Serializing and sending sequence request...\n");
 
     // Prepare msgpack buffer and packer
     msgpack_sbuffer sbuf;
@@ -147,21 +154,21 @@ void sequence(void* requester, bool print_debug = true) {
         {2.0, 0.0, 0.0, 0, 0}
     };
 
-    ppoly(pk, "pulser", 0, vals1, true);
+    ppoly(pk, "pulser", 0, vals1, print_debug);
     
     vector<vector<float>> vals2 = {
         {0.0, 0.0, 0.0, 0, 0},
-        {1.0, 5.0, 0.0, 0, 0},
+        {1.0, 1.0, 0.0, 0, 0},
         {2.0, 0.0, 0.0, 0, 0}
     };
-    ppoly(pk, "raw_move_aodx", 0, vals2, true);
+    ppoly(pk, "raw_move_aodx", 0, vals2, print_debug);
 
     vector<vector<float>> vals3 = {
         {0.0, 0.0, 0.0, 0, 0},
         {1.0, 80.0, 0.0, 0, 0},
         {2.0, 0.0, 0.0, 0, 0}
     };
-    ppoly(pk, "raw_move_aodx", 1, vals3, true);
+    ppoly(pk, "raw_move_aodx", 1, vals3, print_debug);
 
     // End of instructions array
     msgpack_pack_array(&pk, 2);
@@ -183,21 +190,61 @@ void sequence(void* requester, bool print_debug = true) {
     }
     msgpack_sbuffer_destroy(&sbuf);
 }
-int main (void)
+
+void print_usage(const char* prog_name) {
+    printf("Usage: %s -u url [-n iterations]\n", prog_name);
+    printf("  -u url          ZeroMQ URL of the pulse programmer (e.g. tcp://10.0.0.111:8710)\n");
+    printf("  -n iterations   Number of iterations to run (default: 100)\n");
+}
+
+int main(int argc, char* argv[])
 {
-    printf ("Connecting to %s\n", url.c_str());
+    string url;
+
+    int iterations = 100;
+    int opt;
+    while ((opt = getopt(argc, argv, "u:n:h")) != -1) {
+        switch (opt) {
+            case 'u':
+                url = optarg;
+                break;
+            case 'n':
+                iterations = atoi(optarg);
+                break;
+            case 'h':
+            default:
+                print_usage(argv[0]);
+                return 1;
+        }
+    }
+
+    if(url.empty()) {
+        print_usage(argv[0]);
+        return 1;
+    }
+
+    printf("Connecting to %s\n", url.c_str());
+    printf("Iterations: %d\n", iterations);
+
     void *context = zmq_ctx_new ();
     void *requester = zmq_socket (context, ZMQ_REQ);
     zmq_connect (requester, url.c_str());
 
-    for(int i = 0; i < 100; i++) {
-        call_method(requester, "list_methods");
-        call_method(requester, "list_parameters");
-        call_method(requester, "clear_commands", true);
-        sequence(requester);
-        call_method(requester, "play_immediate", true);
-        usleep(1000);
+    call_method(requester, "list_methods");
+    call_method(requester, "list_parameters");
+    call_method(requester, "clear_commands", true);
+
+    struct timeval t_start, t_end;
+    gettimeofday(&t_start, NULL);
+    for(int i = 0; i < iterations; i++) {
+        sequence(requester, false);
+        call_method(requester, "play_immediate", false, false);
+        usleep(100);
     }
+    gettimeofday(&t_end, NULL);
+    long elapsed_us = (t_end.tv_sec - t_start.tv_sec) * 1000000L + (t_end.tv_usec - t_start.tv_usec);
+    printf("Loop of %d iterations took %ld us (%.1f us per iteration)\n", iterations, elapsed_us, 
+           (double)elapsed_us/iterations);
     zmq_close (requester);
     zmq_ctx_destroy (context);
     return 0;
