@@ -13,59 +13,6 @@
 using namespace std;
 string url = "tcp://10.0.0.111:8710";
 
-void pack_str(msgpack_packer* pk, const char* str) {
-    size_t len = strlen(str);
-    msgpack_pack_str(pk, len);
-    msgpack_pack_str_body(pk, str, len);
-}
-
-void unpack_map(const msgpack_object_map& map) {
-    for (uint32_t i = 0; i < map.size; i++) {
-        msgpack_object_kv* kv = &map.ptr[i];
-        if (kv->key.type == MSGPACK_OBJECT_STR) {
-            string key(kv->key.via.str.ptr, kv->key.via.str.size);
-            cout << "Key: " << key << " - ";
-            if (kv->val.type == MSGPACK_OBJECT_STR) {
-                string val(kv->val.via.str.ptr, kv->val.via.str.size);
-                cout << "Value: " << val << endl;
-            } else if (kv->val.type == MSGPACK_OBJECT_ARRAY) {
-                cout << "Value is an array of size " << kv->val.via.array.size << endl;
-                for (uint32_t j = 0; j < kv->val.via.array.size; j++) {
-                    msgpack_object elem = kv->val.via.array.ptr[j];
-                    if (elem.type == MSGPACK_OBJECT_STR) {
-                        string elem_str(elem.via.str.ptr, elem.via.str.size);
-                        cout << "  Element " << j << ": " << elem_str << endl;
-                    }
-                }
-            } else if (kv->val.type == MSGPACK_OBJECT_MAP) {
-                cout << "Value is a map of size " << kv->val.via.map.size << endl;
-                unpack_map(kv->val.via.map);
-            } else {
-                cout << "Value type: " << kv->val.type << endl;
-            }
-        }
-    }
-}
-
-void unpack_reply(const char* buffer, size_t size) {
-    msgpack_unpacked result;
-    msgpack_unpacked_init(&result);
-    size_t off = 0;
-    msgpack_unpack_return ret = msgpack_unpack_next(&result, buffer, size, &off);
-    if (ret == MSGPACK_UNPACK_SUCCESS) {
-        msgpack_object obj = result.data;
-        if (obj.type == MSGPACK_OBJECT_MAP) {
-            cout << "Reply is a map with " << obj.via.map.size << " entries:" << endl;
-            unpack_map(obj.via.map);
-        } else {
-            cout << "Reply is not a map, type: " << obj.type << endl;
-        }
-    } else {
-        cout << "Failed to unpack reply: " << ret << endl;
-    }
-    msgpack_unpacked_destroy(&result);
-}
-
 void send_packed_request(void* requester, msgpack_sbuffer* sbuf, bool print_debug = false) {
     // Print message bytes (request)
     if (print_debug) {
@@ -107,6 +54,12 @@ void send_packed_request(void* requester, msgpack_sbuffer* sbuf, bool print_debu
     msgpack_object_print(stdout, obj);
     printf("\n");
     msgpack_unpacked_destroy(&msg);
+}
+
+void pack_str(msgpack_packer* pk, const char* str) {
+    size_t len = strlen(str);
+    msgpack_pack_str(pk, len);
+    msgpack_pack_str_body(pk, str, len);
 }
 
 void pack_floats(msgpack_packer* pk, const std::vector<float>& values, bool as_array = true ) {
