@@ -43,7 +43,7 @@ ppstep: ppstep.cpp
 	
 .PHONY : pp
 pp: ppstep
-	ssh zc702 -C "./ppstep -h || ./ppstep -u tcp://10.0.0.111:8710 -n 100"
+	ssh zc702 -C "./ppstep -h || ./ppstep -u tcp://10.0.0.111:8710 -n 10 -m 1 -v"
 
 proto: message.proto
 	$(PROTOC) --cpp_out=. --python_out=. message.proto
