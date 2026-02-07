@@ -157,9 +157,8 @@ void call_method(void* requester, const string& method_name, bool print_debug = 
     msgpack_sbuffer_destroy(&sbuf);
 }
 
-void play_clear(void* requester, bool print_debug = true) {
-    call_method(requester, "play_immediate", print_debug, 0);
-    usleep(100); // small delay to ensure play command is processed
+void play_clear(void* requester, bool print_debug = true, int flags = 0) {
+    call_method(requester, "play_immediate", print_debug, flags);
     call_method(requester, "clear_commands", print_debug, 0);
 }
 
@@ -249,7 +248,7 @@ void set_dds(void* requester,
     unsigned digital,
     const vector<float>& values,
     unsigned adj_type,
-    bool print_debug = true) 
+    bool print_debug = true, int flags = 0) 
 {
     if(print_debug)
         printf("Serializing and sending dds update request...\n");
@@ -285,7 +284,7 @@ void set_dds(void* requester,
     pack_str(&pk, "wait_on_complete");
     msgpack_pack_array(&pk, 0);
 
-    send_packed_request(requester, &sbuf, print_debug);
+    send_packed_request(requester, &sbuf, print_debug, flags);
     
     msgpack_sbuffer_destroy(&sbuf);
 }
@@ -298,6 +297,7 @@ void print_usage(const char* prog_name) {
     printf("  -m mode         Test mode (default: 0). 0 = sequencer, 1 = dds set frequency\n");
     printf("  -f freq         Frequency in MHz for mode 1 (default: 80.0)\n");
     printf("  -a amplitude    Amplitude in mode 1 (default: 1.0)\n");
+    printf("  -c              Combine ZMQ messages (default: off)\n");
     printf("  -h              Show this help message\n");
 }
 
@@ -310,7 +310,8 @@ int main(int argc, char* argv[])
     float freq = 80.0;
     float amplitude = 1.0;
     int opt;
-    while ((opt = getopt(argc, argv, "u:n:hm:vf:a:")) != -1) {
+    bool combine_messages = false;
+    while ((opt = getopt(argc, argv, "u:n:hm:vf:a:c")) != -1) {
         switch (opt) {
             case 'u':
                 url = optarg;
@@ -330,6 +331,9 @@ int main(int argc, char* argv[])
             case 'a':
                 amplitude = atof(optarg);
                 break;
+            case 'c':
+                combine_messages = true;
+                break;
             case 'h':
             default:
                 print_usage(argv[0]);
@@ -347,6 +351,7 @@ int main(int argc, char* argv[])
     printf("Mode: %d\n", mode);
     printf("Frequency: %.1f MHz\n", freq);
     printf("Amplitude: %.1f\n", amplitude);
+    printf("Combine ZMQ messages: %s\n", combine_messages ? "on" : "off");
     void *context = zmq_ctx_new ();
     void *requester = zmq_socket (context, ZMQ_REQ);
     zmq_connect (requester, url.c_str());
@@ -360,28 +365,25 @@ int main(int argc, char* argv[])
     vector<float> p0(dds_channel_names.size(), 0.0);
     vector<float> a0(dds_channel_names.size(), amplitude);
     vector<float> a1 = {0.0, 0.0, 0.0, 0.0};
+    int flags = combine_messages ? ZMQ_SNDMORE : 0;
 
-    set_dds(requester, 1, a0, 0, verbose);
-    //play_clear(requester, verbose);
-    call_method(requester, "play_immediate", verbose);
+    set_dds(requester, 1, a0, 0, verbose, 0);
+    play_clear(requester, verbose, flags);
     
     printf("\n\nStarting main loop...\n");
     struct timeval t_start, t_end;
     gettimeofday(&t_start, NULL);
     for(int i = 0; i < iterations; i++) {
-        call_method(requester, "clear_commands", verbose);
-
         if(mode == 0) {
             sequence(requester, verbose);
         } else if(mode == 1) {
             if(i % 2 == 0 || i == iterations - 1)
-                set_dds(requester, 15, f0, 1, verbose);
+                set_dds(requester, 15, f0, 1, verbose, 0);
             else
-                set_dds(requester, 0, f1, 1, verbose);
+                set_dds(requester, 0, f1, 1, verbose, 0);
         }
-        call_method(requester, "play_immediate", verbose);
-        //play_clear(requester, verbose);
-        usleep(100);
+
+        play_clear(requester, verbose, flags);
     }
     gettimeofday(&t_end, NULL);
     long elapsed_us = (t_end.tv_sec - t_start.tv_sec) * 1000000L + (t_end.tv_usec - t_start.tv_usec);
