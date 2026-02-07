@@ -42,7 +42,7 @@ const vector<string> dds_channel_names = {
 
 const bool send_receive = true; // false for debugging packing only
 
-void send_packed_request(void* requester, msgpack_sbuffer* sbuf, bool print_debug = false) {
+void send_packed_request(void* requester, msgpack_sbuffer* sbuf, bool print_debug = false, int flags = 0) {
     // Print message bytes (request)
     if (print_debug) {
         printf("Request bytes: ");
@@ -66,7 +66,7 @@ void send_packed_request(void* requester, msgpack_sbuffer* sbuf, bool print_debu
 
     // Send serialized buffer
     if(send_receive)
-        zmq_send(requester, sbuf->data, sbuf->size, 0);
+        zmq_send(requester, sbuf->data, sbuf->size, flags);
 
     if(print_debug) {
         printf("Sent msgpack request (%zu bytes)\n", sbuf->size);
@@ -86,6 +86,9 @@ void send_packed_request(void* requester, msgpack_sbuffer* sbuf, bool print_debu
     // Receive reply
     if(!send_receive)
         return;
+
+    if(flags & ZMQ_SNDMORE)
+        return; // more parts to send
 
     char buffer[1024];
     int recv_size = zmq_recv(requester, buffer, sizeof(buffer), 0);
@@ -131,7 +134,7 @@ void pack_ints(msgpack_packer* pk, const std::vector<int>& values, bool as_array
     }
 }
 
-void call_method(void* requester, const string& method_name, bool print_debug = true) {
+void call_method(void* requester, const string& method_name, bool print_debug = true, int flags = 0) {
     if(print_debug)
         printf("Serializing and sending %s request...\n", method_name.c_str());
 
@@ -149,9 +152,15 @@ void call_method(void* requester, const string& method_name, bool print_debug = 
     msgpack_pack_map(&pk, 0); // empty data
 
     // Send serialized buffer
-    send_packed_request(requester, &sbuf, print_debug);
+    send_packed_request(requester, &sbuf, print_debug, flags);
 
     msgpack_sbuffer_destroy(&sbuf);
+}
+
+void play_clear(void* requester, bool print_debug = true) {
+    call_method(requester, "play_immediate", print_debug, 0);
+    usleep(100); // small delay to ensure play command is processed
+    call_method(requester, "clear_commands", print_debug, 0);
 }
 
 void ppoly(msgpack_packer& pk, const string& channel, int n, 
@@ -203,7 +212,7 @@ void sequence(void* requester, bool print_debug = true) {
     unsigned int num_instructions = 4;
     msgpack_pack_array(&pk, num_instructions);
 
-    double t[] = {0, 100, 200};
+    float t[] = {0, 100, 200};
     vector<vector<float>> vals1 = {
         {t[0], 0.0, 0.0, 0, 0},
         {t[1], 15.0, 0.0, 0, 0},
@@ -262,8 +271,8 @@ void set_dds(void* requester,
 
     msgpack_pack_array(&pk, num_instructions);
 
-    double t[] = {0, 100, 200};
-    vector<vector<float>> vals1 = {{t[0], digital, 0.0, 0, 0}};
+    float t[] = {0, 100, 200};
+    vector<vector<float>> vals1 = {{t[0], (float)digital, 0.0, 0, 0}};
 
     ppoly(pk, digital_channel_name.c_str(), 0, vals1, print_debug);
 
@@ -286,7 +295,9 @@ void print_usage(const char* prog_name) {
     printf("  -u url          ZeroMQ URL of the pulse programmer (e.g. tcp://10.0.0.111:8710)\n");
     printf("  -n iterations   Number of iterations to run (default: 100)\n");
     printf("  -v              Verbose output\n");
-    printf("  -m mode         Test mode (default: 0). 0 = sequencer, 1 = dds\n");
+    printf("  -m mode         Test mode (default: 0). 0 = sequencer, 1 = dds set frequency\n");
+    printf("  -f freq         Frequency in MHz for mode 1 (default: 80.0)\n");
+    printf("  -a amplitude    Amplitude in mode 1 (default: 1.0)\n");
     printf("  -h              Show this help message\n");
 }
 
@@ -296,9 +307,10 @@ int main(int argc, char* argv[])
     int iterations = 100;
     bool verbose = false;
     int mode = 0;
-    
+    float freq = 80.0;
+    float amplitude = 1.0;
     int opt;
-    while ((opt = getopt(argc, argv, "u:n:hm:v")) != -1) {
+    while ((opt = getopt(argc, argv, "u:n:hm:vf:a:")) != -1) {
         switch (opt) {
             case 'u':
                 url = optarg;
@@ -311,6 +323,12 @@ int main(int argc, char* argv[])
                 break;
             case 'm':
                 mode = atoi(optarg);
+                break;
+            case 'f':
+                freq = atof(optarg);
+                break;
+            case 'a':
+                amplitude = atof(optarg);
                 break;
             case 'h':
             default:
@@ -326,7 +344,9 @@ int main(int argc, char* argv[])
 
     printf("Connecting to %s\n", url.c_str());
     printf("Iterations: %d\n", iterations);
-
+    printf("Mode: %d\n", mode);
+    printf("Frequency: %.1f MHz\n", freq);
+    printf("Amplitude: %.1f\n", amplitude);
     void *context = zmq_ctx_new ();
     void *requester = zmq_socket (context, ZMQ_REQ);
     zmq_connect (requester, url.c_str());
@@ -335,15 +355,16 @@ int main(int argc, char* argv[])
     call_method(requester, "list_parameters", verbose);
     call_method(requester, "clear_commands", verbose);
 
-    vector<float> f0 = {100.0, 100.0, 100.0, 100.0};
-    vector<float> f1 = {2.0, 3.0, 3.0, 3.0};
-    vector<float> p0 = {0.0, 90.0, 180.0, 270.0};
-    vector<float> a0 = {1.0, 0.0, 0.0, 0.0};
+    vector<float> f0(dds_channel_names.size(), freq);
+    vector<float> f1(dds_channel_names.size(), 2.0);
+    vector<float> p0(dds_channel_names.size(), 0.0);
+    vector<float> a0(dds_channel_names.size(), amplitude);
     vector<float> a1 = {0.0, 0.0, 0.0, 0.0};
 
     set_dds(requester, 1, a0, 0, verbose);
+    //play_clear(requester, verbose);
     call_method(requester, "play_immediate", verbose);
-
+    
     printf("\n\nStarting main loop...\n");
     struct timeval t_start, t_end;
     gettimeofday(&t_start, NULL);
@@ -353,12 +374,13 @@ int main(int argc, char* argv[])
         if(mode == 0) {
             sequence(requester, verbose);
         } else if(mode == 1) {
-            if(i % 2 == 0)
+            if(i % 2 == 0 || i == iterations - 1)
                 set_dds(requester, 15, f0, 1, verbose);
             else
                 set_dds(requester, 0, f1, 1, verbose);
         }
         call_method(requester, "play_immediate", verbose);
+        //play_clear(requester, verbose);
         usleep(100);
     }
     gettimeofday(&t_end, NULL);
