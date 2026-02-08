@@ -4,3 +4,5 @@ vivado.*
 *.jou
 *.str
 .Xil/
+*.pb
+xsim.dir
