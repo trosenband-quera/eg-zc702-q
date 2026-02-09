@@ -1,3 +1,5 @@
+set -e # abort on error
+
 CWD=`pwd`
 
 mkdir -p ../thirdparty
@@ -15,7 +17,7 @@ fi
 
 cd $NAME
 
-git tag -l
+# git tag -l
 
 git checkout c-$VERSION
 
