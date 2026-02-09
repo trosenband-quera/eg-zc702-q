@@ -11,6 +11,7 @@
 
 module iq_demodulator_v1_0_S00_AXI #(
     parameter integer NUM_DEMOD_CHANNELS = 3,
+    parameter integer NUM_XADC = 1,
 
     // Width of S_AXI data bus
     parameter integer C_S_AXI_DATA_WIDTH = 32,
@@ -399,7 +400,8 @@ module iq_demodulator_v1_0_S00_AXI #(
       .OUTPUT_PHASE_WIDTH(OUTPUT_PHASE_WIDTH),
       .CORDIC_PHASE_WIDTH(CORDIC_PHASE_WIDTH),
       .CORDIC_WRAP_WIDTH(WRAP_WIDTH),
-      .NUM_DEBUG(NUM_DEBUG_REG)
+      .NUM_DEBUG(NUM_DEBUG_REG),
+      .NUM_XADC(NUM_XADC)
   ) u_iq_demodulator (
       .clk(S_AXI_ACLK),
       .rst(reset_iq),

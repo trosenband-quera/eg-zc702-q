@@ -12,7 +12,8 @@ module iq_demodulator #(
     parameter integer CORDIC_PHASE_WIDTH = 16,
     parameter integer CORDIC_WRAP_WIDTH = 8,
     parameter integer NUM_DEBUG = 8,
-    parameter integer NUM_XADC = 1  // set to 1 to enable XADC instantiation
+    parameter integer NUM_XADC = 1,  // set to 1 to enable XADC instantiation
+    parameter integer NUM_ADAQ4001 = 0  // set to 1 to enable ADAQ4001 instantiation
 ) (
     input  wire                         clk,               // 100 MHz system clock
     input  wire                         rst,
@@ -86,9 +87,9 @@ module iq_demodulator #(
   assign debug_array[4] = {signal_avg[0][15:0], signal_avg[1][15:0]};
   assign debug_array[5] = {signal_avg[2][15:0], signal_avg[3][15:0]};
   
-  // ADC data sampling and counting, on xadc_ready rising edge
-  wire xadc_ready;
-  reg prev_xadc_ready;
+  // ADC data sampling and counting, on adc_ready rising edge
+  wire adc_ready;
+  reg prev_adc_ready;
   wire [15:0] adc_data;
   // reference phase = channel 0
   wire signed [CORDIC_PHASE_WIDTH-1:0] phases_array [NUM_CHANNELS-1:0];
@@ -121,14 +122,14 @@ module iq_demodulator #(
     if (rst) begin
       adc_sample_count <= 0;
       adc_data_reg <= 0;
-      prev_xadc_ready <= 0;
+      prev_adc_ready <= 0;
       f0 <= lo_dds_phase_inc[LO_PHASE_WIDTH-1:0];
       f00 <= lo_dds_phase_inc[LO_PHASE_WIDTH-1:0];
       lo_dds_phase_inc_reg[0] <= lo_dds_phase_inc[LO_PHASE_WIDTH-1:0];
       integrator <= 0;
     end else begin
       // init read
-      if (xadc_ready == 1 && prev_xadc_ready == 0) begin
+      if (adc_ready == 1 && prev_adc_ready == 0) begin
         unwrapped_phase0 <= phases_array[0] - MAX*wraps_array[0];
         adc_sample_count <= adc_sample_count + 1;
         adc_data_reg <= adc_data;
@@ -146,7 +147,7 @@ module iq_demodulator #(
         end
       end
       lo_dds_phase_inc_reg[0] <= f0;
-      prev_xadc_ready <= xadc_ready;
+      prev_adc_ready <= adc_ready;
     end
   end
 
@@ -171,7 +172,7 @@ module iq_demodulator #(
           if (ch > 0)
             lo_dds_phase_inc_reg[ch] <= lo_dds_phase_inc[((ch+1)*LO_PHASE_WIDTH-1):(ch*LO_PHASE_WIDTH)];
 
-          if (xadc_ready == 1 && prev_xadc_ready == 0) begin
+          if (adc_ready == 1 && prev_adc_ready == 0) begin
             dds_phase_acc_sin[ch] <= dds_phase_acc_sin[ch] + lo_dds_phase_inc_reg[ch];
             dds_phase_acc_cos[ch] <= dds_phase_acc_cos[ch] + lo_dds_phase_inc_reg[ch];
             
@@ -190,7 +191,7 @@ module iq_demodulator #(
           .COEFF(IQ_AVG_COEFF),
           .SHIFT(IQ_AVG_SHIFT)
       ) lpf_i_inst (
-          .clk(xadc_ready),
+          .clk(adc_ready),
           .reset(rst),
           .in(mixerI[ch]),
           .out(i_avg[ch])
@@ -201,7 +202,7 @@ module iq_demodulator #(
           .COEFF(IQ_AVG_COEFF),
           .SHIFT(IQ_AVG_SHIFT)
       ) lpf_q_inst (
-          .clk(xadc_ready),
+          .clk(adc_ready),
           .reset(rst),
           .in(mixerQ[ch]),
           .out(q_avg[ch])
@@ -248,7 +249,7 @@ module iq_demodulator #(
           .DEN(eoc),
           .DWE(1'b0),
           .DI(16'h0000),
-          .DRDY(xadc_ready),
+          .DRDY(adc_ready),
           .DO(adc_data),
           .RESET(rst),
           .EOC(eoc),
@@ -263,6 +264,15 @@ module iq_demodulator #(
           .VN(VN)
       );
     end
-  endgenerate
 
+    for (k=0; k<NUM_ADAQ4001; k = k+1) begin : gen_adaq4001
+      spi_ADAQ4001 #(
+      ) adc_inst (
+          .clk(clk),
+          .ready(adc_ready),
+          .data(adc_data),
+          .rst(rst)
+      );
+    end
+  endgenerate
 endmodule

@@ -9,7 +9,17 @@ proc init_gui { IPINST } {
   set_property tooltip {Width of S_AXI address bus} ${C_S00_AXI_ADDR_WIDTH}
   ipgui::add_param $IPINST -name "C_S00_AXI_BASEADDR" -parent ${Page_0}
   ipgui::add_param $IPINST -name "C_S00_AXI_HIGHADDR" -parent ${Page_0}
+  
 
+	# Try to add the GUI param; if it fails, skip the checkbox
+	if {[catch {
+		set _p [ipgui::add_param $IPINST -name "ENABLE_XADC" -parent {Page_0}]
+		set gp [ipgui::get_guiparams $IPINST -name "ENABLE_XADC"]
+		set_property widget checkBox $gp
+		# set_property display_name "Enable XADC" $gp
+	} emsg]} {
+		puts "init_gui: ENABLE_XADC not found or GUI bind failed; skipping checkbox. ($emsg)"
+	}
 
 }
 
@@ -60,3 +70,13 @@ proc update_MODELPARAM_VALUE.C_S00_AXI_ADDR_WIDTH { MODELPARAM_VALUE.C_S00_AXI_A
 	set_property value [get_property value ${PARAM_VALUE.C_S00_AXI_ADDR_WIDTH}] ${MODELPARAM_VALUE.C_S00_AXI_ADDR_WIDTH}
 }
 
+# Called when GUI param ENABLE_XADC changes; sets the HDL model param NUM_XADC
+proc update_MODELPARAM_VALUE.NUM_XADC { MODELPARAM_VALUE.NUM_XADC PARAM_VALUE.ENABLE_XADC } {
+    # Read the GUI boolean (string "true"/"false" or 1/0)
+    set b [get_property value ${PARAM_VALUE.ENABLE_XADC}]
+    # Normalize to integer 0/1
+    set v [expr {$b eq "true" || $b == 1 ? 1 : 0}]
+    # Write to the model (HDL) parameter
+    set_property value $v ${MODELPARAM_VALUE.NUM_XADC}
+	puts "updated NUM_XADC to $v"
+}

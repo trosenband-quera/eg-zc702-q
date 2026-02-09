@@ -4,7 +4,8 @@
 module iq_demodulator_v1_0 #(
     // Parameters of Axi Slave Bus Interface S00_AXI
     parameter integer C_S00_AXI_DATA_WIDTH = 32,
-    parameter integer C_S00_AXI_ADDR_WIDTH = 8
+    parameter integer C_S00_AXI_ADDR_WIDTH = 8,
+    parameter integer NUM_XADC = 1
 ) (
     // Users to add ports here
 
@@ -37,6 +38,7 @@ module iq_demodulator_v1_0 #(
 );
   // Instantiation of Axi Bus Interface S00_AXI
   iq_demodulator_v1_0_S00_AXI #(
+      .NUM_XADC(NUM_XADC),
       .NUM_DEMOD_CHANNELS(4),
       .C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH),
       .C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)

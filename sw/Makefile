@@ -1,3 +1,4 @@
+PATH := /home/trosen/opt/xilinx/2025.2/gnu/aarch32/lin/gcc-arm-linux-gnueabi/bin:$(PATH)
 
 SELF := $(shell basename $(PWD))
 
