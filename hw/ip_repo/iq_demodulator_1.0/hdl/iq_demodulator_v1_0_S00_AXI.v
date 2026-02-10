@@ -12,6 +12,7 @@
 module iq_demodulator_v1_0_S00_AXI #(
     parameter integer NUM_DEMOD_CHANNELS = 3,
     parameter integer NUM_XADC = 1,
+    parameter integer NUM_ADAQ4001 = 0,
 
     // Width of S_AXI data bus
     parameter integer C_S_AXI_DATA_WIDTH = 32,
@@ -77,7 +78,13 @@ module iq_demodulator_v1_0_S00_AXI #(
     output wire S_AXI_RVALID,
     // Read ready. This signal indicates that the master can
     // accept the read data and response information.
-    input wire S_AXI_RREADY
+    input wire S_AXI_RREADY,
+
+    // spi interface for ADAQ4001 ADC (if NUM_ADAQ4001 > 0)
+    output wire adc_spi_cs_n,
+    output wire adc_spi_clk,
+    output wire adc_spi_mosi,
+    input wire adc_spi_miso
 );
 
   // AXI4LITE signals
@@ -401,7 +408,8 @@ module iq_demodulator_v1_0_S00_AXI #(
       .CORDIC_PHASE_WIDTH(CORDIC_PHASE_WIDTH),
       .CORDIC_WRAP_WIDTH(WRAP_WIDTH),
       .NUM_DEBUG(NUM_DEBUG_REG),
-      .NUM_XADC(NUM_XADC)
+      .NUM_XADC(NUM_XADC),
+      .NUM_ADAQ4001(NUM_ADAQ4001)
   ) u_iq_demodulator (
       .clk(S_AXI_ACLK),
       .rst(reset_iq),
@@ -414,7 +422,12 @@ module iq_demodulator_v1_0_S00_AXI #(
       .phases(phases),
       .wraps(wraps),
       .debug(debug),
-      .signal_good(signal_good)
+      .signal_good(signal_good),
+      // spi interface for ADAQ4001 ADC (if NUM_ADAQ4001 > 0)
+      .adc_spi_cs_n(adc_spi_cs_n),
+      .adc_spi_clk(adc_spi_clk),
+      .adc_spi_mosi(adc_spi_mosi),
+      .adc_spi_miso(adc_spi_miso)
   );
 
   // User logic ends

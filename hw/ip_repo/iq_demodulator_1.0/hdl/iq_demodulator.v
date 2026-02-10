@@ -26,7 +26,12 @@ module iq_demodulator #(
     output wire [(OUTPUT_PHASE_WIDTH*NUM_CHANNELS-1):0] phases,
     output wire [(NUM_CHANNELS*CORDIC_WRAP_WIDTH-1):0] wraps,
     output wire [NUM_DEBUG*32-1:0] debug,
-    output reg  [NUM_CHANNELS-1:0]   signal_good
+    output reg  [NUM_CHANNELS-1:0]   signal_good,
+    // spi interface for ADAQ4001 ADC (if NUM_ADAQ4001 > 0)
+    output wire adc_spi_cs_n,
+    output wire adc_spi_clk,
+    output wire adc_spi_mosi,
+    input wire adc_spi_miso
   );
   localparam integer IQ_AVG_ORDER = 5;  // 5th order low-pass filter for I/Q
   localparam integer IQ_AVG_SHIFT = 6;  // 1/e filter shift (2^n samples)
@@ -266,12 +271,16 @@ module iq_demodulator #(
     end
 
     for (k=0; k<NUM_ADAQ4001; k = k+1) begin : gen_adaq4001
-      spi_ADAQ4001 #(
+      adc_adaq4001_spi_wrapper #(
       ) adc_inst (
           .clk(clk),
           .ready(adc_ready),
           .data(adc_data),
-          .rst(rst)
+          .rst(rst),
+          .spi_cs_n(adc_spi_cs_n),
+          .spi_clk(adc_spi_clk),
+          .spi_mosi(adc_spi_mosi),
+          .spi_miso(adc_spi_miso)
       );
     end
   endgenerate

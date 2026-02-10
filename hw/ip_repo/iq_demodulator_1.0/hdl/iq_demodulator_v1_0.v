@@ -5,7 +5,8 @@ module iq_demodulator_v1_0 #(
     // Parameters of Axi Slave Bus Interface S00_AXI
     parameter integer C_S00_AXI_DATA_WIDTH = 32,
     parameter integer C_S00_AXI_ADDR_WIDTH = 8,
-    parameter integer NUM_XADC = 1
+    parameter integer NUM_XADC = 1,
+    parameter integer NUM_ADAQ4001 = 0,  // Number of ADAQ4001 ADCs (0 to disable SPI interface)
 ) (
     // Users to add ports here
 
@@ -34,12 +35,19 @@ module iq_demodulator_v1_0 #(
     output wire [C_S00_AXI_DATA_WIDTH-1 : 0] s00_axi_rdata,
     output wire [1 : 0] s00_axi_rresp,
     output wire s00_axi_rvalid,
-    input wire s00_axi_rready
+    input wire s00_axi_rready,
+
+// spi interface for ADAQ4001 ADC (if NUM_ADAQ4001 > 0)
+    output wire adc_spi_cs_n,
+    output wire adc_spi_clk,
+    output wire adc_spi_mosi,
+    input wire adc_spi_miso
 );
   // Instantiation of Axi Bus Interface S00_AXI
   iq_demodulator_v1_0_S00_AXI #(
       .NUM_XADC(NUM_XADC),
       .NUM_DEMOD_CHANNELS(4),
+      .NUM_ADAQ4001(NUM_ADAQ4001),
       .C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH),
       .C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)
   ) iq_demodulator_v1_0_S00_AXI_inst (
@@ -63,7 +71,11 @@ module iq_demodulator_v1_0 #(
       .S_AXI_RDATA(s00_axi_rdata),
       .S_AXI_RRESP(s00_axi_rresp),
       .S_AXI_RVALID(s00_axi_rvalid),
-      .S_AXI_RREADY(s00_axi_rready)
+      .S_AXI_RREADY(s00_axi_rready),
+      .adc_spi_cs_n(adc_spi_cs_n),
+      .adc_spi_clk(adc_spi_clk),
+      .adc_spi_mosi(adc_spi_mosi),
+      .adc_spi_miso(adc_spi_miso)
   );
 
   // Add user logic here

@@ -2,4 +2,5 @@ low_pass_n_order.v,verilog,xil_defaultlib,../../ip_repo/iq_demodulator_1.0/hdl/l
 cordic_atan2.v,verilog,xil_defaultlib,../../ip_repo/iq_demodulator_1.0/hdl/cordic_atan2.v,
 iq_demodulator.v,verilog,xil_defaultlib,../../ip_repo/iq_demodulator_1.0/hdl/iq_demodulator.v,
 iq_demodulator_v1_0_S00_AXI.v,verilog,xil_defaultlib,../../ip_repo/iq_demodulator_1.0/hdl/iq_demodulator_v1_0_S00_AXI.v,
+adc_adaq4001_spi_min.v,verilog,xil_defaultlib,../../ip_repo/iq_demodulator_1.0/hdl/adc_adaq4001_spi_min.v,
 stimuli.v,verilog,xil_defaultlib,./stimuli.v,
