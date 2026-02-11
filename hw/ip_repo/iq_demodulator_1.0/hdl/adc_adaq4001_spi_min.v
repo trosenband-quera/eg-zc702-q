@@ -40,41 +40,41 @@ module adc_adaq4001_spi_min #(
 
   assign adc_data = adc_data_reg;
   assign adc_ready = adc_ready_reg;
-  assign spi_cs_n = (state == 2'h0) ? 1 : 0;  // pull high to start conversion, pull low during SPI transaction
-  assign spi_clk = (state == 2'h2) ? clk : 0;  // Generate SPI clock during transaction
-  assign spi_mosi = (state > 2'h0) ? output_reg[C_ADC_BIT_WIDTH-1] : 0;  // Shift out command/data during transaction, MSB first
+  assign spi_cs_n = (state == 0) ? 1 : 0;  // pull high to start conversion, pull low during SPI transaction
+  assign spi_clk = (state == 2) ? clk : 0;  // Generate SPI clock during transaction
+  assign spi_mosi = (state > 0) ? output_reg[C_ADC_BIT_WIDTH-1] : 0;  // Shift out command/data during transaction, MSB first
 
   always @(posedge clk) begin
     if (rst) begin
       adc_ready_reg <= 0;
-      state <= 2'h0;
+      state <= 0;
       clock_counter <= 0;
     end else begin
       case (state)
-        2'h0: begin
+        0: begin
           // Initiate conversion by asserting CS and waiting for TCONV_CYCLES
           adc_ready_reg <= 0;
           if (clock_counter < TCONV_CYCLES) begin
             clock_counter <= clock_counter + 1;
           end else begin
             clock_counter <= 0;
-            state <= 2'h1;  // Move to SPI transaction state
+            state <= 1;  // Move to SPI transaction state
           end
         end
-        2'h1: begin
-          state <= 2'h2;
+        1: begin
+          state <= 2;
         end
-        2'h2: begin // SPI transaction: shift out command and read data, run SPI clock
+        2: begin // SPI transaction: shift out command and read data, run SPI clock
           if (clock_counter < C_ADC_BIT_WIDTH-1) begin
             clock_counter <= clock_counter + 1;  // Shift out command and read data bits
           end else begin
             clock_counter <= 0;
             adc_ready_reg <= 1;  // Indicate that ADC data is ready after shifting out all bits
-            state <= 2'h0;  // Start next conversion
+            state <= 0;  // Start next conversion
           end
         end
         default: begin
-          state <= 2'h0; // Reset to initial state in case of undefined state
+          state <= 0; // Reset to initial state in case of undefined state
         end
       endcase
     end
@@ -87,10 +87,10 @@ module adc_adaq4001_spi_min #(
       output_reg <= 0;
     end else begin
       case (state)
-      2'h0: begin
+      0: begin
         output_reg <= 16'h1400; // default command to read ADC data and preserve default settings (see ADAQ4001 datasheet, rev B, Table 14 & Figure 53)
       end
-      2'h2: begin
+      2: begin
         // SPI transaction: shift out command and read data
         output_reg   <= {output_reg[C_ADC_BIT_WIDTH-2:0], 1'b0};
         adc_data_reg <= {adc_data_reg[C_ADC_BIT_WIDTH-2:0], spi_miso};  // Shift in data from MISO
