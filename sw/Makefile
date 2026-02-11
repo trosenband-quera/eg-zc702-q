@@ -14,7 +14,7 @@ CC := $(CROSS_COMPILE)-gcc
 CXX := $(CROSS_COMPILE)-g++
 LD := $(CROSS_COMPILE)-ld
 
-PROTOC := protoc 
+PROTOC := bin/protoc 
 
 # More warnings.
 CFLAGS := -Wall -Wextra
@@ -35,7 +35,7 @@ LDFLAGS := -lm -lgcc -L./lib
 default: iq
 
 iq: iq.cpp Novatech409c.cpp message.pb.cc message.pb.h
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) iq.cpp Novatech409c.cpp message.pb.cc -o iq -lprotobuf -latomic
+	$(CXX) -static $(CXXFLAGS) $(LDFLAGS) iq.cpp Novatech409c.cpp message.pb.cc -o iq -lprotobuf -latomic
 
 ppstep: ppstep.cpp
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) ppstep.cpp -o ppstep -lzmq -lpthread -lmsgpack-c -lrt
@@ -76,7 +76,6 @@ serial: serial_comm
 .PHONY : fpgacfg
 fpgacfg:
 	$(MAKE) -C ../hw/iq_project fpgacfg
-	scp ../thirdparty/protobuf/src/.libs/libprotobuf.so zc702:/usr/local/lib/
 
 # For this target to work you need to have ssh setup appropriately using
 # ~/.ssh/config on the host.
@@ -93,7 +92,7 @@ transfer: default ppstep
 
 .PHONY : transferlibs
 transferlibs:
-	scp lib/libmsgpack-c.so.2 lib/libprotobuf.so lib/libzmq.so.5 zc702:/usr/lib/
+	scp lib/libmsgpack-c.so.2 lib/libprotobuf.so.30 lib/libzmq.so.5 lib/libatomic.so.1 lib/libpthread.so.0 lib/libresolv.so.2 zc702:/lib/
 
 .PHONY : run
 run: transfer

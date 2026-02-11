@@ -293,6 +293,10 @@ proc cr_bd_system { parentCell } {
 
   # Create instance: iq_demodulator_0, and set properties
   set iq_demodulator_0 [ create_bd_cell -type ip -vlnv quera.com:ip:iq_demodulator:1.0 iq_demodulator_0 ]
+  set_property -dict [ list \
+   CONFIG.NUM_XADC {0} \
+   CONFIG.NUM_ADAQ4001 {1} \
+   ] $iq_demodulator_0
 
   # Connect ports to the IP pins
   connect_bd_net $adc_spi_cs_n_o  [get_bd_pins iq_demodulator_0/adc_spi_cs_n]

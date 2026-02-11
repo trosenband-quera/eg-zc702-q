@@ -160,6 +160,7 @@ public:
                         (struct sockaddr*)&addr, sizeof(addr));
         if (n < 0) {
             perror("sendto");
+            std::cerr << "Failed to send message. sock = " << sock << std::endl;
         } else {
             // Successfully sent
             // printf("Sent %zd bytes to %s:%d\n", n, ip.c_str(), port);

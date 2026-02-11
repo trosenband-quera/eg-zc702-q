@@ -5,8 +5,8 @@ module iq_demodulator #(
     // Parameters of Axi Slave Bus Interface S00_AXI
     parameter integer C_S00_AXI_DATA_WIDTH = 32,
     parameter integer C_S00_AXI_ADDR_WIDTH = 8,
-    parameter integer NUM_XADC = 1,
-    parameter integer NUM_ADAQ4001 = 0  // Number of ADAQ4001 ADCs (0 to disable SPI interface)
+    parameter integer NUM_XADC = 0,  // Number of XADC channels (0 to disable XADC interface)
+    parameter integer NUM_ADAQ4001 = 1  // Number of ADAQ4001 ADCs (0 to disable SPI interface)
 ) (
     // Users to add ports here
 

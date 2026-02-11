@@ -271,11 +271,11 @@ module iq_demod #(
     end
 
     for (k=0; k<NUM_ADAQ4001; k = k+1) begin : gen_adaq4001
-      adc_adaq4001_spi_wrapper #(
+      adc_adaq4001_spi_min #(
       ) adc_inst (
           .clk(clk),
-          .ready(adc_ready),
-          .data(adc_data),
+          .adc_ready(adc_ready),
+          .adc_data(adc_data),
           .rst(rst),
           .spi_cs_n(adc_spi_cs_n),
           .spi_clk(adc_spi_clk),
