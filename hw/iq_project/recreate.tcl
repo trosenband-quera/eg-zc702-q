@@ -25,7 +25,7 @@
 # 2. The following source(s) files that were local or imported into the original project.
 #    (Please see the '$orig_proj_dir' and '$origin_dir' variable setting below at the start of the script)
 #
-#    "./srcs/sources_1/imports/hdl/top_wrapper.v"
+#    "./srcs/sources_1/imports/hdl/system_wrapper.v"
 #    "./srcs/constrs_1/imports/constrs_1/top.xdc"
 #    "./srcs/sim_1/imports/top/zynq_tb.v"
 #
@@ -147,7 +147,7 @@ if {[string equal [get_filesets -quiet sources_1] ""]} {
 set obj [get_filesets sources_1]
 # Import local files from the original project
 set files [list \
- [file normalize "${origin_dir}/srcs/sources_1/imports/hdl/top_wrapper.v"]\
+ [file normalize "${origin_dir}/srcs/sources_1/imports/hdl/system_wrapper.v"]\
 ]
 set imported_files [import_files -fileset sources_1 $files]
 
@@ -159,7 +159,7 @@ set imported_files [import_files -fileset sources_1 $files]
 
 # Set 'sources_1' fileset properties
 set obj [get_filesets sources_1]
-set_property -name "top" -value "top_wrapper" -objects $obj
+set_property -name "top" -value "system_wrapper" -objects $obj
 set_property -name "top_auto_set" -value "0" -objects $obj
 
 # Create 'constrs_1' fileset (if not found)
@@ -208,11 +208,11 @@ set_property -name "top_auto_set" -value "0" -objects $obj
 # Adding sources referenced in BDs, if not already added
 
 
-# Proc to create BD top
-proc cr_bd_top { parentCell } {
+# Proc to create BD system
+proc cr_bd_system { parentCell } {
 
   # CHANGE DESIGN NAME HERE
-  set design_name top
+  set design_name system
 
   common::send_msg_id "BD_TCL-003" "INFO" "Currently there is no design <$design_name> in project, so creating one..."
 
@@ -225,10 +225,9 @@ proc cr_bd_top { parentCell } {
   set bCheckIPs 1
   if { $bCheckIPs == 1 } {
      set list_check_ips "\ 
-  xilinx.com:ip:axi_gpio:2.0\
   xilinx.com:ip:processing_system7:5.5\
   xilinx.com:ip:proc_sys_reset:5.0\
-  user.org:user:iq_demodulator:1.0\
+  quera.com:ip:iq_demodulator:1.0\
   "
 
    set list_ips_missing ""
@@ -283,24 +282,23 @@ proc cr_bd_top { parentCell } {
   # Create interface ports
   set DDR [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:ddrx_rtl:1.0 DDR ]
   set FIXED_IO [ create_bd_intf_port -mode Master -vlnv xilinx.com:display_processing_system7:fixedio_rtl:1.0 FIXED_IO ]
-  set LED8b [ create_bd_intf_port -mode Master -vlnv xilinx.com:interface:gpio_rtl:1.0 LED8b ]
 
   # Create ports
 
-  # Create instance: axi_gpio_0, and set properties
-  set axi_gpio_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:axi_gpio:2.0 axi_gpio_0 ]
-  set_property -dict [ list \
-   CONFIG.C_ALL_INPUTS {0} \
-   CONFIG.C_ALL_OUTPUTS {1} \
-   CONFIG.C_DOUT_DEFAULT {0x55555555} \
-   CONFIG.C_GPIO_WIDTH {8} \
-   CONFIG.C_IS_DUAL {0} \
-   CONFIG.GPIO_BOARD_INTERFACE {Custom} \
-   CONFIG.USE_BOARD_FLOW {true} \
- ] $axi_gpio_0
+  # Create top-level external scalar ports with *exact* names
+  set adc_spi_cs_n_o   [ create_bd_port -dir O adc_spi_cs_n_o ]
+  set adc_spi_clk_o    [ create_bd_port -dir O adc_spi_clk_o ]
+  set adc_spi_mosi_o   [ create_bd_port -dir O adc_spi_mosi_o ]
+  set adc_spi_miso_i   [ create_bd_port -dir I adc_spi_miso_i ]
 
   # Create instance: iq_demodulator_0, and set properties
-  set iq_demodulator_0 [ create_bd_cell -type ip -vlnv user.org:user:iq_demodulator:1.0 iq_demodulator_0 ]
+  set iq_demodulator_0 [ create_bd_cell -type ip -vlnv quera.com:ip:iq_demodulator:1.0 iq_demodulator_0 ]
+
+  # Connect ports to the IP pins
+  connect_bd_net $adc_spi_cs_n_o  [get_bd_pins iq_demodulator_0/adc_spi_cs_n]
+  connect_bd_net $adc_spi_clk_o   [get_bd_pins iq_demodulator_0/adc_spi_clk]
+  connect_bd_net $adc_spi_mosi_o  [get_bd_pins iq_demodulator_0/adc_spi_mosi]
+  connect_bd_net $adc_spi_miso_i  [get_bd_pins iq_demodulator_0/adc_spi_miso]
 
   # Create instance: blk_mem_gen_0, and set properties
   # set blk_mem_gen_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 blk_mem_gen_0 ]
@@ -719,22 +717,19 @@ proc cr_bd_top { parentCell } {
   set rst_ps7_0_50M [ create_bd_cell -type ip -vlnv xilinx.com:ip:proc_sys_reset:5.0 rst_ps7_0_50M ]
 
   # Create interface connections
-  connect_bd_intf_net -intf_net axi_gpio_0_GPIO [get_bd_intf_ports LED8b] [get_bd_intf_pins axi_gpio_0/GPIO]
   connect_bd_intf_net -intf_net processing_system7_0_DDR [get_bd_intf_ports DDR] [get_bd_intf_pins processing_system7_0/DDR]
   connect_bd_intf_net -intf_net processing_system7_0_FIXED_IO [get_bd_intf_ports FIXED_IO] [get_bd_intf_pins processing_system7_0/FIXED_IO]
   connect_bd_intf_net -intf_net processing_system7_0_M_AXI_GP0 [get_bd_intf_pins processing_system7_0/M_AXI_GP0] [get_bd_intf_pins ps7_0_axi_periph/S00_AXI]
-  connect_bd_intf_net -intf_net ps7_0_axi_periph_M00_AXI [get_bd_intf_pins axi_gpio_0/S_AXI] [get_bd_intf_pins ps7_0_axi_periph/M00_AXI]
   connect_bd_intf_net -intf_net ps7_0_axi_periph_M01_AXI [get_bd_intf_pins iq_demodulator_0/S00_AXI] [get_bd_intf_pins ps7_0_axi_periph/M01_AXI]
  
   # Create port connections
-  connect_bd_net -net processing_system7_0_FCLK_CLK0 [get_bd_pins axi_gpio_0/s_axi_aclk] [get_bd_pins iq_demodulator_0/s00_axi_aclk] [get_bd_pins processing_system7_0/FCLK_CLK0] [get_bd_pins processing_system7_0/M_AXI_GP0_ACLK] [get_bd_pins ps7_0_axi_periph/ACLK] [get_bd_pins ps7_0_axi_periph/M00_ACLK] [get_bd_pins ps7_0_axi_periph/M01_ACLK] [get_bd_pins ps7_0_axi_periph/M02_ACLK] [get_bd_pins ps7_0_axi_periph/S00_ACLK] [get_bd_pins rst_ps7_0_50M/slowest_sync_clk]
+  connect_bd_net -net processing_system7_0_FCLK_CLK0 [get_bd_pins iq_demodulator_0/s00_axi_aclk] [get_bd_pins processing_system7_0/FCLK_CLK0] [get_bd_pins processing_system7_0/M_AXI_GP0_ACLK] [get_bd_pins ps7_0_axi_periph/ACLK] [get_bd_pins ps7_0_axi_periph/M00_ACLK] [get_bd_pins ps7_0_axi_periph/M01_ACLK] [get_bd_pins ps7_0_axi_periph/M02_ACLK] [get_bd_pins ps7_0_axi_periph/S00_ACLK] [get_bd_pins rst_ps7_0_50M/slowest_sync_clk]
   connect_bd_net -net processing_system7_0_FCLK_RESET0_N [get_bd_pins processing_system7_0/FCLK_RESET0_N] [get_bd_pins rst_ps7_0_50M/ext_reset_in]
   connect_bd_net -net rst_ps7_0_50M_interconnect_aresetn [get_bd_pins ps7_0_axi_periph/ARESETN] [get_bd_pins rst_ps7_0_50M/interconnect_aresetn]
-  connect_bd_net -net rst_ps7_0_50M_peripheral_aresetn [get_bd_pins axi_gpio_0/s_axi_aresetn] [get_bd_pins iq_demodulator_0/s00_axi_aresetn] [get_bd_pins ps7_0_axi_periph/M00_ARESETN] [get_bd_pins ps7_0_axi_periph/M01_ARESETN] [get_bd_pins ps7_0_axi_periph/M02_ARESETN] [get_bd_pins ps7_0_axi_periph/S00_ARESETN] [get_bd_pins rst_ps7_0_50M/peripheral_aresetn]
+  connect_bd_net -net rst_ps7_0_50M_peripheral_aresetn [get_bd_pins iq_demodulator_0/s00_axi_aresetn] [get_bd_pins ps7_0_axi_periph/M00_ARESETN] [get_bd_pins ps7_0_axi_periph/M01_ARESETN] [get_bd_pins ps7_0_axi_periph/M02_ARESETN] [get_bd_pins ps7_0_axi_periph/S00_ARESETN] [get_bd_pins rst_ps7_0_50M/peripheral_aresetn]
 
   # Create address segments
-  create_bd_addr_seg -range 0x00010000 -offset 0x41200000 [get_bd_addr_spaces processing_system7_0/Data] [get_bd_addr_segs axi_gpio_0/S_AXI/Reg] SEG_axi_gpio_0_Reg
-  create_bd_addr_seg -range 0x00010000 -offset 0x43C00000 [get_bd_addr_spaces processing_system7_0/Data] [get_bd_addr_segs iq_demodulator_0/S00_AXI/S00_AXI_reg] SEG_iq_demodulator_0_S00_AXI_reg
+    create_bd_addr_seg -range 0x00010000 -offset 0x43C00000 [get_bd_addr_spaces processing_system7_0/Data] [get_bd_addr_segs iq_demodulator_0/s00_AXI/reg0] SEG_iq_demodulator_0_S00_AXI_reg
 
   # Restore current instance
   current_bd_instance $oldCurInst
@@ -742,11 +737,11 @@ proc cr_bd_top { parentCell } {
   save_bd_design
   close_bd_design $design_name 
 }
-# End of cr_bd_top()
-cr_bd_top ""
-set_property IS_MANAGED "0" [get_files top.bd ] 
-set_property REGISTERED_WITH_MANAGER "1" [get_files top.bd ] 
-set_property SYNTH_CHECKPOINT_MODE "Hierarchical" [get_files top.bd ] 
+# End of cr_bd_system()
+cr_bd_system ""
+set_property IS_MANAGED "0" [get_files system.bd ] 
+set_property REGISTERED_WITH_MANAGER "1" [get_files system.bd ] 
+set_property SYNTH_CHECKPOINT_MODE "Hierarchical" [get_files system.bd ] 
 
 # Create 'synth_1' run (if not found)
 if {[string equal [get_runs -quiet synth_1] ""]} {

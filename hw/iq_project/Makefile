@@ -4,6 +4,12 @@ SELF := $(shell basename $(PWD))
 default:
 	vivado -source recreate.tcl
 
+ip:
+	vivado -mode batch -source pkgIP.tcl
+
+wrapper:
+	vivado -mode batch -source top.tcl
+		
 .PHONY : zcu111
 zcu111:
 	vivado -source recreate_zcu111.tcl

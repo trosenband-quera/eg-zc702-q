@@ -1,6 +1,16 @@
+//Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+//Copyright 2022-2025 Advanced Micro Devices, Inc. All Rights Reserved.
+//--------------------------------------------------------------------------------
+//Tool Version: Vivado v.2025.2 (lin64) Build 6299465 Fri Nov 14 12:34:56 MST 2025
+//Date        : Tue Feb 10 17:52:43 2026
+//Host        : TRosenband-LT running 64-bit Ubuntu 24.04.3 LTS
+//Command     : generate_target system_wrapper.bd
+//Design      : system_wrapper
+//Purpose     : IP block netlist
+//--------------------------------------------------------------------------------
 `timescale 1 ps / 1 ps
 
-module top_wrapper
+module system_wrapper
    (DDR_addr,
     DDR_ba,
     DDR_cas_n,
@@ -22,7 +32,10 @@ module top_wrapper
     FIXED_IO_ps_clk,
     FIXED_IO_ps_porb,
     FIXED_IO_ps_srstb,
-    LED8b_tri_o);
+    adc_spi_clk_o,
+    adc_spi_cs_n_o,
+    adc_spi_miso_i,
+    adc_spi_mosi_o);
   inout [14:0]DDR_addr;
   inout [2:0]DDR_ba;
   inout DDR_cas_n;
@@ -44,7 +57,10 @@ module top_wrapper
   inout FIXED_IO_ps_clk;
   inout FIXED_IO_ps_porb;
   inout FIXED_IO_ps_srstb;
-  output [7:0]LED8b_tri_o;
+  output adc_spi_clk_o;
+  output adc_spi_cs_n_o;
+  input adc_spi_miso_i;
+  output adc_spi_mosi_o;
 
   wire [14:0]DDR_addr;
   wire [2:0]DDR_ba;
@@ -67,9 +83,12 @@ module top_wrapper
   wire FIXED_IO_ps_clk;
   wire FIXED_IO_ps_porb;
   wire FIXED_IO_ps_srstb;
-  wire [7:0]LED8b_tri_o;
+  wire adc_spi_clk_o;
+  wire adc_spi_cs_n_o;
+  wire adc_spi_miso_i;
+  wire adc_spi_mosi_o;
 
-  top top_i
+  system system_i
        (.DDR_addr(DDR_addr),
         .DDR_ba(DDR_ba),
         .DDR_cas_n(DDR_cas_n),
@@ -91,5 +110,8 @@ module top_wrapper
         .FIXED_IO_ps_clk(FIXED_IO_ps_clk),
         .FIXED_IO_ps_porb(FIXED_IO_ps_porb),
         .FIXED_IO_ps_srstb(FIXED_IO_ps_srstb),
-        .LED8b_tri_o(LED8b_tri_o));
+        .adc_spi_clk_o(adc_spi_clk_o),
+        .adc_spi_cs_n_o(adc_spi_cs_n_o),
+        .adc_spi_miso_i(adc_spi_miso_i),
+        .adc_spi_mosi_o(adc_spi_mosi_o));
 endmodule

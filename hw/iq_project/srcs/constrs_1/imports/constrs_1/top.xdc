@@ -1,22 +1,17 @@
-# LED GPIO pins
+# SPI pins, PMOD1
 
-# LSB on RHS(DS19), MSB on LHS(DS15)
-# Table 1-23, page 46 in ug850-zc702-eval-bd.pdf
-set_property PACKAGE_PIN E15 [get_ports {LED8b_tri_o[0]}]
-set_property PACKAGE_PIN D15 [get_ports {LED8b_tri_o[1]}]
-set_property PACKAGE_PIN W17 [get_ports {LED8b_tri_o[2]}]
-set_property PACKAGE_PIN W5  [get_ports {LED8b_tri_o[3]}]
-set_property PACKAGE_PIN V7  [get_ports {LED8b_tri_o[4]}]
-set_property PACKAGE_PIN W10 [get_ports {LED8b_tri_o[5]}]
-set_property PACKAGE_PIN P18 [get_ports {LED8b_tri_o[6]}]
-set_property PACKAGE_PIN P17 [get_ports {LED8b_tri_o[7]}]
+ # PMOD1_0_LS
+set_property PACKAGE_PIN E15 [get_ports adc_spi_cs_n_o]
+set_property IOSTANDARD LVCMOS25 [get_ports adc_spi_cs_n_o]
 
-set_property IOSTANDARD LVCMOS25 [get_ports {LED8b_tri_o[0]}]
-set_property IOSTANDARD LVCMOS25 [get_ports {LED8b_tri_o[1]}]
-set_property IOSTANDARD LVCMOS25 [get_ports {LED8b_tri_o[2]}]
-set_property IOSTANDARD LVCMOS25 [get_ports {LED8b_tri_o[3]}]
-set_property IOSTANDARD LVCMOS25 [get_ports {LED8b_tri_o[4]}]
-set_property IOSTANDARD LVCMOS25 [get_ports {LED8b_tri_o[5]}]
-set_property IOSTANDARD LVCMOS25 [get_ports {LED8b_tri_o[6]}]
-set_property IOSTANDARD LVCMOS25 [get_ports {LED8b_tri_o[7]}]
+ # PMOD1_1_LS
+set_property PACKAGE_PIN D15 [get_ports adc_spi_mosi_o]
+set_property IOSTANDARD LVCMOS25 [get_ports adc_spi_mosi_o]
 
+ # PMOD1_2_LS
+set_property PACKAGE_PIN W17 [get_ports adc_spi_miso_i]
+set_property IOSTANDARD LVCMOS25 [get_ports adc_spi_miso_i]
+ 
+ # PMOD1_3_LS
+set_property PACKAGE_PIN W5 [get_ports adc_spi_clk_o]
+set_property IOSTANDARD LVCMOS25 [get_ports adc_spi_clk_o]

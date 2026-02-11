@@ -9,7 +9,7 @@
 // - add iq_demodulator signals to AXI read registers
 // - generate registers via for-loops instead of fixed
 
-module iq_demodulator_v1_0_S00_AXI #(
+module iq_demodulator_S00_AXI #(
     parameter integer NUM_DEMOD_CHANNELS = 3,
     parameter integer NUM_XADC = 1,
     parameter integer NUM_ADAQ4001 = 0,
@@ -401,7 +401,7 @@ module iq_demodulator_v1_0_S00_AXI #(
   assign reset_iq = ~S_AXI_ARESETN | slv_reg[0][0];
 
   // Instantiate iq_demodulator module
-  iq_demodulator #(
+  iq_demod #(
       .NUM_CHANNELS(NUM_DEMOD_CHANNELS),
       .LO_PHASE_WIDTH(LO_PHASE_WIDTH),
       .OUTPUT_PHASE_WIDTH(OUTPUT_PHASE_WIDTH),
