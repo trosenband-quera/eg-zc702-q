@@ -61,7 +61,7 @@ async def udp_server(q: asyncio.Queue):
     transport, protocol = await loop.create_datagram_endpoint(
         lambda: UdpReceiver(q),
         local_addr=(UDP_IP, UDP_PORT),
-        reuse_port=True
+        reuse_port=False
     )
     try:
         await asyncio.Future()  # run forever

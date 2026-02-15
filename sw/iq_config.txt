@@ -1,7 +1,7 @@
 csv_filename=1.csv
 t0_ms=0
 ms0=1000
-tmax_ms=2000
+tmax_ms=20000
 ms=1
 showscaled=1
 kp=20

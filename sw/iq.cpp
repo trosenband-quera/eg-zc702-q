@@ -22,24 +22,13 @@
 #include <cmath>
 #include <iomanip>
 
-#include <string.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <signal.h>
-
 #include "Novatech409c.h"
 #include "message.pb.h"
+#include "udp_sender.h"
 #include <algorithm>
 #include <google/protobuf/text_format.h>
 
 using namespace std;
-
-static volatile int keep_running = 1;
-
-static void handle_sigint(int) {
-    keep_running = 0;
-}
-
 
 void set_register(volatile void *map_base, unsigned num, unsigned value) {
     *(volatile unsigned int *)((char *)map_base + num*4) = value;
@@ -70,8 +59,8 @@ map<string, string> read_config(const string& config_file) {
             line = line.substr(0, comment_pos);
         }
         // Trim whitespace from both ends
-        size_t first = line.find_first_not_of(" \t");
-        size_t last = line.find_last_not_of(" \t");
+        size_t first = line.find_first_not_of(" \t\r\n");
+        size_t last = line.find_last_not_of(" \t\r\n");
         if (first == string::npos || last == string::npos) {
             continue; // Skip empty or whitespace-only lines
         }
@@ -100,95 +89,6 @@ unsigned set_frequency(volatile void *map_base, unsigned channel, double freq_Hz
     set_register(map_base, 4 + channel, phase_inc);
     return phase_inc;
 }
-
-class udp_sender {
-public:
-    string ip;
-    int port = 50000;
-    double freq_hz = 1.0;   // sine frequency
-    double send_rate_hz = 100.0; // packet rate
-    double dt;
-    struct sockaddr_in addr;
-    int sock;
-    std::string buffer;
-    iq_proto::plotData data_msg;
-
-    udp_sender(string ip_addr) : ip(ip_addr) {
-        dt = 1.0 / send_rate_hz;
-    
-        sock = socket(AF_INET, SOCK_DGRAM, 0);
-        if (sock < 0) {
-            perror("socket");
-            return;
-        }
-
-        
-        memset(&addr, 0, sizeof(addr));
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons((uint16_t)port);
-        if (inet_pton(AF_INET, ip.c_str(), &addr.sin_addr) != 1) {
-            fprintf(stderr, "inet_pton failed for %s\n", ip.c_str());
-            close(sock);
-            return;
-        }
-
-        // Handle kill/interrupt signals for clean exit
-        signal(SIGINT, handle_sigint);
-        signal(SIGTERM, handle_sigint);
-    }
-
-    void send_data(const vector<float>& x) {
-        if(x.size() != (size_t)data_msg.values_size()) {
-            data_msg.clear_values();
-            for (unsigned i = 0; i < x.size(); ++i) {
-                data_msg.add_values(x[i]);
-            }
-        }
-        else {
-            // If the size matches, just update the existing values
-            for (unsigned i = 0; i < x.size(); ++i) {
-                data_msg.set_values(i, x[i]);
-            }
-        }
-        if (!data_msg.SerializeToString(&buffer)) {
-            std::cerr << "Failed to serialize message.\n";
-            return;
-        }
-
-        // Send
-        ssize_t n = sendto(sock, buffer.data(), buffer.size(), 0,
-                        (struct sockaddr*)&addr, sizeof(addr));
-        if (n < 0) {
-            perror("sendto");
-            std::cerr << "Failed to send message. sock = " << sock << std::endl;
-        } else {
-            // Successfully sent
-            // printf("Sent %zd bytes to %s:%d\n", n, ip.c_str(), port);
-            // printf("%s\n", data_msg.DebugString().c_str());
-        }
-    }
-
-    void send_channel_info(const iq_proto::plotData& info_msg) {
-        if (!info_msg.SerializeToString(&buffer)) {
-            std::cerr << "Failed to serialize message.\n";
-            return;
-        }
-
-        // Send
-        ssize_t n = sendto(sock, buffer.data(), buffer.size(), 0,
-                        (struct sockaddr*)&addr, sizeof(addr));
-        if (n < 0) {
-            perror("sendto");
-        } else {
-            // Successfully sent
-            // printf("Sent %zd bytes to %s:%d\n", n, ip.c_str(), port);
-            // printf("%s\n", data_msg.DebugString().c_str());
-        }
-    }
-    ~udp_sender() {
-        close(sock);
-    }
-};
 
 int main(int argc, char *argv[]) {
     udp_sender* sender = 0;
@@ -466,8 +366,8 @@ int main(int argc, char *argv[]) {
             ch_info->set_max(5000);
         }
         else if(channel_names[ch].find("PHASE") != string::npos) {
-            ch_info->set_min(-0.1);
-            ch_info->set_max(0.1);
+            ch_info->set_min(-5);
+            ch_info->set_max(5);
         }
         else {
             double min_val = bipolar[ch] ? -scale[ch]*((1ULL << (width[ch]*8 - 1)) - 1) : 0;

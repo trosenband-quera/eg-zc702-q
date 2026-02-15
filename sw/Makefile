@@ -1,5 +1,9 @@
+PATH := /home/trosen/opt/xilinx/2025.2/gnu/aarch32/lin/gcc-arm-linux-gnueabi/bin:$(PATH)
 
 SELF := $(shell basename $(PWD))
+
+SYSROOT := /home/trosen/opt/xilinx/2025.2/gnu/aarch32/lin/gcc-arm-linux-gnueabi/cortexa9t2hf-neon-amd-linux-gnueabi
+
 
 # Zynq on ZC702 is running linux so use arm-linux-gnueabi
 # For bare-metal target use arm-none-gnueabi
@@ -13,17 +17,19 @@ CC := $(CROSS_COMPILE)-gcc
 CXX := $(CROSS_COMPILE)-g++
 LD := $(CROSS_COMPILE)-ld
 
-PROTOC := protoc 
+PROTOC := bin/protoc 
 
 # More warnings.
 CFLAGS := -Wall -Wextra
-CXXFLAGS := -Wall -Wextra -Wno-psabi  -O2  -Iinclude/ #-g -O1 -gdwarf-4
+CXXFLAGS := -Wall -Wextra -Wno-psabi  -O2  -Iinclude/
+            # -Wl,--rpath=/newglibc \
+			# -Wl,--dynamic-linker=/newglibc/ld-linux-armhf.so.3#-g -O1 -gdwarf-4
 
 # The minimal linux does not have shared libraries to dynamically link to so
 # executable must be statically linked.
 # Otherwise, when running ./foo you get an error like:
 #	-sh: ./foo: No such file or directory
-LDFLAGS := -static -lm -lgcc
+LDFLAGS := -lm -lgcc -L./lib
 
 # Link to libraries.
 #LDLIBS := -lm
@@ -31,8 +37,17 @@ LDFLAGS := -static -lm -lgcc
 # First target is the default so name it as such.
 default: iq
 
-iq: iq.cpp Novatech409c.cpp message.pb.cc message.pb.h
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) iq.cpp Novatech409c.cpp message.pb.cc -o iq  lib/libprotobuf-lite.a -latomic
+iq: iq.cpp Novatech409c.cpp message.pb.cc message.pb.h udp_sender.h
+	$(CXX) -static $(CXXFLAGS) $(LDFLAGS) iq.cpp Novatech409c.cpp message.pb.cc -o iq -lprotobuf -latomic
+
+ppstep: ppstep.cpp
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) ppstep.cpp -o ppstep -lzmq -lpthread -lmsgpack-c -lrt
+	scp ppstep zc702:~/
+	ssh zc702 -C "chmod u+x ./ppstep"
+	
+.PHONY : pp
+pp: ppstep
+	ssh zc702 -C "./ppstep -h || ./ppstep -u tcp://10.0.0.111:8710 -n 10 -m 1 -v"
 
 proto: message.proto
 	$(PROTOC) --cpp_out=. --python_out=. message.proto
@@ -44,7 +59,7 @@ udpsend: udpsend.cpp
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) udpsend.cpp -o udpsend
 
 udpsend2: udpsend2.cpp message.pb.cc message.pb.h
-	$(CXX) $(CXXFLAGS) $(LDFLAGS)  udpsend2.cpp message.pb.cc -o udpsend2  lib/libprotobuf-lite.a -latomic
+	$(CXX) -static $(CXXFLAGS) $(LDFLAGS)  udpsend2.cpp message.pb.cc -o udpsend2  -lprotobuf -latomic
 
 .PHONY : udp
 udp: udpsend
@@ -64,7 +79,7 @@ serial: serial_comm
 .PHONY : fpgacfg
 fpgacfg:
 	$(MAKE) -C ../hw/iq_project fpgacfg
-
+	
 # For this target to work you need to have ssh setup appropriately using
 # ~/.ssh/config on the host.
 # I.e. containing something like this:
@@ -75,8 +90,19 @@ fpgacfg:
 #		UserKnownHostsFile /dev/null
 #		LogLevel QUIET
 .PHONY : transfer
-transfer: default
-	scp iq iq_config*.txt config.pb.txt zc702:~/
+transfer: default ppstep
+	scp iq iq_config*.txt config.pb.txt ppstep zc702:~/
+
+.PHONY : transferlibs
+transferlibs:
+	scp lib/libmsgpack-c.so.2 lib/libprotobuf.so.30 lib/libzmq.so.5 lib/libatomic.so.1 lib/libpthread.so.0 lib/libresolv.so.2 zc702:/usr/lib/
+
+.PHONY : transferglibc
+transferglibc:
+	ssh zc702 -C "mkdir -p /newglibc"
+	scp $(SYSROOT)/lib/* zc702:/newglibc/
+	scp $(SYSROOT)/usr/lib/libstdc++* zc702:/newglibc/
+	scp $(SYSROOT)/usr/lib/libpthread.* zc702:/newglibc/
 
 .PHONY : run
 run: transfer
@@ -107,7 +133,7 @@ gethist:
 .PHONY : clean
 clean:
 	-rm -f *.o *.bit *.csv
-	-rm -f iq serial_comm udpsend udpsend2
+	-rm -f iq serial_comm udpsend udpsend2 ppstep
 
 # List all Make targets.
 .PHONY : list
