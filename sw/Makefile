@@ -2,6 +2,9 @@ PATH := /home/trosen/opt/xilinx/2025.2/gnu/aarch32/lin/gcc-arm-linux-gnueabi/bin
 
 SELF := $(shell basename $(PWD))
 
+SYSROOT := /home/trosen/opt/xilinx/2025.2/gnu/aarch32/lin/gcc-arm-linux-gnueabi/cortexa9t2hf-neon-amd-linux-gnueabi
+
+
 # Zynq on ZC702 is running linux so use arm-linux-gnueabi
 # For bare-metal target use arm-none-gnueabi
 CROSS_COMPILE := arm-linux-gnueabihf
@@ -76,7 +79,11 @@ serial: serial_comm
 .PHONY : fpgacfg
 fpgacfg:
 	$(MAKE) -C ../hw/iq_project fpgacfg
-
+	ssh zc702 -C "mkdir -p /newglibc"
+	scp $(SYSROOT)/lib/* zc702:/newglibc/
+	scp $(SYSROOT)/usr/lib/libstdc++* zc702:/newglibc/
+	scp $(SYSROOT)/usr/lib/libpthread.* zc702:/newglibc/
+	
 # For this target to work you need to have ssh setup appropriately using
 # ~/.ssh/config on the host.
 # I.e. containing something like this:
@@ -92,7 +99,9 @@ transfer: default ppstep
 
 .PHONY : transferlibs
 transferlibs:
-	scp lib/libmsgpack-c.so.2 lib/libprotobuf.so.30 lib/libzmq.so.5 lib/libatomic.so.1 lib/libpthread.so.0 lib/libresolv.so.2 zc702:/lib/
+	scp lib/libmsgpack-c.so.2 lib/libprotobuf.so.30 lib/libzmq.so.5 lib/libatomic.so.1 lib/libpthread.so.0 lib/libresolv.so.2 zc702:/usr/lib/
+
+
 
 .PHONY : run
 run: transfer

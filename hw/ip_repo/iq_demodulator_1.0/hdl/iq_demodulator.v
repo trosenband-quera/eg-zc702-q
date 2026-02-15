@@ -44,13 +44,13 @@ module iq_demodulator #(
     input wire adc_spi_miso
 );
   // Instantiation of Axi Bus Interface S00_AXI
-  iq_demodulator_S00_AXI #(
+  iq_demod_S00_AXI #(
       .NUM_XADC(NUM_XADC),
       .NUM_DEMOD_CHANNELS(4),
       .NUM_ADAQ4001(NUM_ADAQ4001),
       .C_S_AXI_DATA_WIDTH(C_S00_AXI_DATA_WIDTH),
       .C_S_AXI_ADDR_WIDTH(C_S00_AXI_ADDR_WIDTH)
-  ) iq_demodulator_v1_0_S00_AXI_inst (
+  ) iq_demod_S00_AXI_inst (
       .S_AXI_ACLK(s00_axi_aclk),
       .S_AXI_ARESETN(s00_axi_aresetn),
       .S_AXI_AWADDR(s00_axi_awaddr),

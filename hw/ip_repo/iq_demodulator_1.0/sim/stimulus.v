@@ -23,12 +23,6 @@ always #(PERIOD / 2.0)
   
 initial rst = 1;
 
-initial
-begin
-  // Start :
-  #(2*PERIOD);
-  rst = 0;
-end
 
 // MISO register to simulate ADC data shifting out during SPI transaction
 reg [15:0] miso_reg;
@@ -37,18 +31,23 @@ reg [15:0] miso_reg;
 // MSB, delayed by one SPI clock cycle to simulate real SPI behavior
 reg miso_sig; 
 
-always @(posedge adc_spi_clk or posedge rst) begin
+initial
+begin
+  // Start :
+  #(2*PERIOD);
+  rst = 0;
+  miso_reg = data;
+  miso_sig = 1;
+end
+
+always @(posedge adc_spi_clk) begin
   miso_sig <= miso_reg[15];
-  if (rst) begin
-    miso_reg <= data; // Load the MISO register with the example ADC data on reset
-  end else begin
     // Simulate ADC data shifting out on MISO during SPI transaction
     if (adc_spi_cs_n == 0) begin
       miso_reg <= {miso_reg[14:0], 1'b1}; // Shift in '1's for testing, MSB first
     end else begin
       miso_reg <= data; // Clear MISO register when not in transaction
     end
-  end
 end
 
 assign adc_spi_miso = miso_sig;
@@ -56,8 +55,8 @@ assign adc_spi_miso = miso_sig;
 
 // Instantiate the ADC module, DUT
 adc_adaq4001_spi_min adc (
-  .clk(clk),                              // Clock input for dynamic reconfiguration port (DRP) having a clock with 100MHZ frequency 
-  .rst(rst),                              // Reset Signal for System Monitor Control logic.
+  .clk(clk),
+  .rst(rst),
  
   .adc_data(data_out),                         // [15:0] binary sample data
   .adc_ready(data_ready_out),                  // Data ready signal for the dynamic reconfiguration port.
