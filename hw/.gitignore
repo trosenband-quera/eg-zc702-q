@@ -1,1 +1,5 @@
 testbench/
+**/sim.*/
+**/ip_repo.bak/
+**/attic/
+**/tmp_proj/

@@ -55,4 +55,6 @@ dkms.conf
 
 *.jou
 *.log
-
+__pycache__/
+**/quetzal/
+data/
